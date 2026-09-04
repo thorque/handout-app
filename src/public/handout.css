@@ -1,0 +1,569 @@
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/fonts/source-sans-3-latin-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/static/fonts/source-sans-3-latin-600.woff2") format("woff2");
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The `hidden` attribute is honoured by the browser's own `[hidden]{display:none}`,
+   which any author rule setting `display` outranks. Every element toggled with
+   `hidden` here also carries a class with a `display`, so state this once for all
+   of them rather than per class - forgetting it makes the element simply visible. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent-ink);
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Header */
+
+/* Header — structure and every value here from the design system's own
+   Handout Designsystem.dc.html, read directly (DesignSync was unavailable
+   while planning). position: relative sits on the row itself: the panel is
+   the row's direct child, not a wrapper's, so a sibling selector would not
+   help here — the row is the only element both share. */
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.header-wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.header-wordmark-text {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+
+.header-wordmark-bar {
+  width: 28px;
+  height: 3px;
+  background: var(--ink);
+}
+
+.header-profile-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--paper-sunken);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.header-profile-button:hover {
+  background: var(--sunken-hover);
+}
+
+.header-profile-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 24px;
+  z-index: 3;
+  width: 272px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+}
+
+.header-profile-identity {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-bottom: 1px solid var(--line-quiet);
+}
+
+.header-profile-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.header-profile-email {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.header-profile-appearance {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--line-quiet);
+}
+
+.header-profile-section-label {
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.header-theme-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.header-theme-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.header-theme-button:hover {
+  background: var(--paper-sunken);
+}
+
+.header-theme-button[aria-pressed="true"] {
+  background: var(--paper-sunken);
+  color: var(--accent-ink);
+  font-weight: var(--weight-semibold);
+}
+
+.header-theme-check {
+  display: inline-block;
+  width: 14px;
+}
+
+.header-signout-form {
+  margin: 0;
+}
+
+.header-signout-button {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+  text-decoration: none;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.header-signout-button:hover {
+  background: var(--paper-sunken);
+}
+
+/* Page body */
+
+.page-body {
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 48px 5% 96px;
+}
+
+/* The prototype's h1 always carries margin:0 — the gap after it comes from
+   whatever follows (a lead paragraph's own margin-top, or the next block's),
+   never from the heading itself. */
+h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+
+.lead {
+  max-width: var(--measure);
+  color: var(--ink-muted);
+  margin: 8px 0 0;
+}
+
+/* The done phase's lead paragraph carries no max-width in the prototype,
+   unlike the form phase's. */
+.lead-wide {
+  color: var(--ink-muted);
+  margin: 8px 0 0;
+}
+
+/* Drop area (Ablegefeld) */
+
+.drop-area {
+  margin-top: var(--space-6);
+  padding: 48px 24px;
+  border-radius: var(--radius-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  border: 1px dashed var(--line-strong);
+  background: var(--paper);
+}
+
+.drop-area.dragging {
+  border: 2px dashed var(--accent);
+  background: var(--accent-quiet);
+}
+
+/* .drop-area's own gap only spaces its *direct* children (these two
+   wrappers and the message) — it does nothing for what is stacked inside
+   either one, so each wrapper centres and spaces its own children. */
+.drop-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.drop-filled {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Mirrors .drop-area.dragging in the opposite key: still dashed, so the
+   surface still reads as a drop area, with the inset shadow carrying the
+   weight the way it does on an errored field. --danger-ink on
+   --danger-quiet is 6.07:1 in light and 6.57:1 in dark, AA in both. */
+.drop-area.error {
+  border: 1px dashed var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+  background: var(--danger-quiet);
+}
+
+.drop-headline {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-regular);
+}
+
+.drop-area.dragging .drop-headline {
+  font-weight: var(--weight-semibold);
+}
+
+.drop-hint {
+  font-size: var(--text-sm);
+  color: var(--ink-faint);
+}
+
+.drop-pick-button {
+  height: var(--control-height);
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.drop-pick-button:hover {
+  background: var(--paper-sunken);
+}
+
+.drop-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.drop-filled-name {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.drop-filled-size {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.drop-replace-button {
+  height: 32px;
+  padding: 0 12px;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.drop-replace-button:hover {
+  background: var(--paper-sunken);
+}
+
+/* The primary feedback on a large surface, so it takes the visible-error
+   size (16px), not the field-hint size (13px) — a refusal about the file
+   that is easy to miss is the failure this size exists to prevent. */
+.drop-message {
+  display: flex;
+  gap: 6px;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--danger-ink);
+}
+
+/* Not modelled in the prototype (it has no error state) — the top-level
+   message needs its own top margin since it isn't spaced by .drop-area's
+   flex gap the way the client-rendered one inside it is. */
+.drop-message-standalone {
+  margin-top: var(--space-4);
+}
+
+.drop-message-icon {
+  font-weight: 600;
+}
+
+/* Form fields */
+
+.field {
+  margin-top: var(--space-6);
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-weight: var(--weight-semibold);
+}
+
+.field input[type="text"] {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  color: var(--ink);
+}
+
+.field-hint {
+  font-size: var(--text-sm);
+  color: var(--ink-faint);
+}
+
+/* This is genuinely the hint slot the design system shows an error example
+   in, so it keeps that slot's 13px — unlike .drop-message, which is the
+   primary feedback on a large surface and needs the bigger size instead. */
+.field-hint-error {
+  color: var(--danger-ink);
+}
+
+.field input[type="text"].field-input-error {
+  border: 1px solid var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+  border-radius: 2px;
+}
+
+/* Publish button */
+
+.publish-button {
+  margin-top: var(--space-6);
+  height: var(--control-height);
+  padding: 0 20px;
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+}
+
+.publish-button:disabled {
+  background: var(--paper-sunken);
+  color: var(--line-strong);
+  border: 1px solid var(--line);
+  cursor: not-allowed;
+}
+
+/* Uploading phase */
+
+/* The prototype wraps the whole uploading phase (heading, box, footnote) at
+   max-width:560px; that heading sits above the box, outside its padding —
+   not inside it. */
+/* The design system gives this element max-width:560px as a standalone
+   specimen. Here it replaces the drop area in place, so it follows the drop
+   area's own width instead of narrowing the page mid-form — hence no
+   max-width on this wrapper, a deliberate deviation from the specimen. */
+.upload-phase {
+  margin-top: var(--space-6);
+}
+
+.upload-box {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.upload-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  margin-bottom: var(--space-2);
+}
+
+.upload-track {
+  height: 6px;
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+}
+
+.upload-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+}
+
+/* Result phase (Kopierfeld) */
+
+.done-phase {
+  max-width: 640px;
+}
+
+.copy-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  margin-top: var(--space-6);
+}
+
+/* Kopierfeld, verbatim from design-sources/Kopierfeld.dc.html. */
+.copy-field {
+  background: var(--surface);
+  padding: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.copy-field-column {
+  flex: 1;
+  min-width: 0;
+}
+
+.copy-field-label {
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  display: block;
+}
+
+.copy-field-value {
+  display: block;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-field-button {
+  height: var(--control-height);
+  padding: 0 16px;
+  border-radius: var(--radius-1);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  min-width: 112px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.copy-field-button:hover {
+  background: var(--paper-sunken);
+}
+
+.another-button {
+  margin-top: var(--space-6);
+  display: inline-block;
+  height: var(--control-height);
+  line-height: calc(var(--control-height) - 2px);
+  padding: 0 20px;
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.another-button:hover {
+  background: var(--paper-sunken);
+}

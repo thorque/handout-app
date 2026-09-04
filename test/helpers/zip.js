@@ -22,7 +22,9 @@ export function buildZip(entries) {
   let offset = 0;
 
   for (const { name, content } of entries) {
-    const data = Buffer.isBuffer(content) ? content : Buffer.from(content, "utf8");
+    const data = Buffer.isBuffer(content)
+      ? content
+      : Buffer.from(content, "utf8");
     const nameBuf = Buffer.from(name, "utf8");
     const checksum = crc32(data) >>> 0;
 
@@ -89,7 +91,10 @@ export const TWO_FILE_SITE = buildZip([
 ]);
 
 export const WRAPPER_SITE = buildZip([
-  { name: "dist/index.html", content: "<html><body>Wrapper site</body></html>" },
+  {
+    name: "dist/index.html",
+    content: "<html><body>Wrapper site</body></html>",
+  },
   { name: "dist/assets/app.css", content: "body { color: blue; }" },
 ]);
 

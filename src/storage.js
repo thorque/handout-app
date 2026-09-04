@@ -26,7 +26,9 @@ export function paths(config) {
 
 export async function ensureDataDirs(config) {
   const dirs = paths(config);
-  await Promise.all(Object.values(dirs).map((dir) => fsp.mkdir(dir, { recursive: true })));
+  await Promise.all(
+    Object.values(dirs).map((dir) => fsp.mkdir(dir, { recursive: true })),
+  );
 }
 
 // Streams an incoming upload to disk while counting bytes, aborting the
@@ -52,7 +54,9 @@ export function acceptUpload({ filename, stream, config }) {
     stream.on("data", (chunk) => {
       bytes += chunk.length;
       if (bytes > config.maxUploadBytes) {
-        cleanupAndReject(new TooLargeError("Upload exceeds the configured ceiling"));
+        cleanupAndReject(
+          new TooLargeError("Upload exceeds the configured ceiling"),
+        );
       }
     });
     stream.on("error", (err) => cleanupAndReject(err));
@@ -81,11 +85,15 @@ export function detectKind(filename, firstBytes) {
   const ext = extensionOf(filename);
   if (ext === "zip") {
     if (firstBytes.slice(0, 4).equals(MAGIC.zip)) return "zip";
-    throw new UnsupportedError("File extension .zip does not match its content");
+    throw new UnsupportedError(
+      "File extension .zip does not match its content",
+    );
   }
   if (ext === "pdf") {
     if (firstBytes.slice(0, 5).equals(MAGIC.pdf)) return "pdf";
-    throw new UnsupportedError("File extension .pdf does not match its content");
+    throw new UnsupportedError(
+      "File extension .pdf does not match its content",
+    );
   }
   if (ext === "html" || ext === "htm") {
     return "html";
@@ -175,7 +183,9 @@ export function assertSafeMember(name) {
 function asUnsafeZipError(err) {
   if (
     err instanceof Error &&
-    /^(invalid relative path|absolute path|invalid characters in fileName):/.test(err.message)
+    /^(invalid relative path|absolute path|invalid characters in fileName):/.test(
+      err.message,
+    )
   ) {
     return new UnsafeZipError(err.message);
   }
@@ -184,10 +194,14 @@ function asUnsafeZipError(err) {
 
 function openZip(sourcePath) {
   return new Promise((resolve, reject) => {
-    yauzl.open(sourcePath, { lazyEntries: true, autoClose: false }, (err, zipfile) => {
-      if (err) reject(err);
-      else resolve(zipfile);
-    });
+    yauzl.open(
+      sourcePath,
+      { lazyEntries: true, autoClose: false },
+      (err, zipfile) => {
+        if (err) reject(err);
+        else resolve(zipfile);
+      },
+    );
   });
 }
 
@@ -222,7 +236,10 @@ async function extractZip(sourcePath, destinationDir) {
       }
 
       const targetPath = path.resolve(destinationDir, name);
-      if (!targetPath.startsWith(path.resolve(destinationDir) + path.sep) && targetPath !== path.resolve(destinationDir)) {
+      if (
+        !targetPath.startsWith(path.resolve(destinationDir) + path.sep) &&
+        targetPath !== path.resolve(destinationDir)
+      ) {
         zipfile.close();
         reject(new UnsafeZipError(`Unsafe zip member: ${name}`));
         return;
@@ -288,7 +305,9 @@ export async function materialise({ kind, sourcePath, filename, config }) {
       for (const name of names) {
         if (!name.endsWith("/")) assertSafeMember(name);
       }
-      const resolved = resolveZipEntry(names.filter((name) => !name.endsWith("/")));
+      const resolved = resolveZipEntry(
+        names.filter((name) => !name.endsWith("/")),
+      );
       await extractZip(sourcePath, stagingDir);
       root = resolved.root;
       entry = resolved.entry;
@@ -325,12 +344,18 @@ export async function promoteToContent(config, stagingToken, address) {
 
 export async function removeStaging(config, stagingToken) {
   const dirs = paths(config);
-  await fsp.rm(path.join(dirs.staging, stagingToken), { recursive: true, force: true });
+  await fsp.rm(path.join(dirs.staging, stagingToken), {
+    recursive: true,
+    force: true,
+  });
 }
 
 export async function removeContent(config, address) {
   const dirs = paths(config);
-  await fsp.rm(path.join(dirs.content, address), { recursive: true, force: true });
+  await fsp.rm(path.join(dirs.content, address), {
+    recursive: true,
+    force: true,
+  });
 }
 
 export async function readMeta(config, address) {

@@ -13,7 +13,10 @@ export default async function staticRoutes(fastify) {
     const decoded = decodeURIComponent(requested);
     const targetPath = path.resolve(PUBLIC_DIR, decoded);
 
-    if (targetPath !== PUBLIC_DIR && !targetPath.startsWith(PUBLIC_DIR + path.sep)) {
+    if (
+      targetPath !== PUBLIC_DIR &&
+      !targetPath.startsWith(PUBLIC_DIR + path.sep)
+    ) {
       return reply.code(404).send();
     }
 

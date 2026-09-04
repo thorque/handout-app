@@ -5,11 +5,7 @@ import { buildTestServer } from "./helpers/app.js";
 import { buildMultipart } from "./helpers/multipart.js";
 import { strings, t } from "../src/views/strings.js";
 import { ADDRESS_PATTERN } from "../src/address.js";
-import {
-  TWO_FILE_SITE,
-  ENTRYLESS,
-  TRAVERSAL,
-} from "./helpers/zip.js";
+import { TWO_FILE_SITE, ENTRYLESS, TRAVERSAL } from "./helpers/zip.js";
 
 function rawRequest(baseUrl, { method, path, headers, body }) {
   return new Promise((resolve, reject) => {
@@ -20,7 +16,11 @@ function rawRequest(baseUrl, { method, path, headers, body }) {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
         res.on("end", () =>
-          resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }),
+          resolve({
+            status: res.statusCode,
+            headers: res.headers,
+            body: Buffer.concat(chunks),
+          }),
         );
       },
     );
@@ -33,9 +33,19 @@ function rawRequest(baseUrl, { method, path, headers, body }) {
 test("the happy path: multipart POST returns 303 to /handouts/<10 chars>, and the done page carries the address", async () => {
   const t2 = await buildTestServer();
   try {
-    const cookie = t2.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t2.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "site.zip", content: TWO_FILE_SITE, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
       { name: "title", value: "My Site" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
@@ -50,12 +60,23 @@ test("the happy path: multipart POST returns 303 to /handouts/<10 chars>, and th
     const address = location.split("/").pop();
     assert.match(address, ADDRESS_PATTERN);
 
-    const doneRes = await fetch(`${t2.baseUrl}${location}`, { headers: { cookie } });
+    const doneRes = await fetch(`${t2.baseUrl}${location}`, {
+      headers: { cookie },
+    });
     assert.strictEqual(doneRes.status, 200);
     const html = await doneRes.text();
-    assert.ok(html.includes(`data-copy="http://`), "expected a data-copy attribute with the absolute address");
-    assert.ok(html.includes(address), "expected the done page to carry the address");
-    assert.match(html, new RegExp(`<button[^>]*>${strings["done.copy"]}</button>`));
+    assert.ok(
+      html.includes(`data-copy="http://`),
+      "expected a data-copy attribute with the absolute address",
+    );
+    assert.ok(
+      html.includes(address),
+      "expected the done page to carry the address",
+    );
+    assert.match(
+      html,
+      new RegExp(`<button[^>]*>${strings["done.copy"]}</button>`),
+    );
   } finally {
     await t2.close();
   }
@@ -70,28 +91,50 @@ test("the happy path: multipart POST returns 303 to /handouts/<10 chars>, and th
 test("the done page's Kopierfeld matches the component: a classed, shrinkable left column", async () => {
   const t2 = await buildTestServer();
   try {
-    const cookie = t2.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t2.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "site.zip", content: TWO_FILE_SITE, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
       { name: "title", value: "My Site" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     const { location } = await res.json();
-    const doneRes = await fetch(`${t2.baseUrl}${location}`, { headers: { cookie } });
+    const doneRes = await fetch(`${t2.baseUrl}${location}`, {
+      headers: { cookie },
+    });
     const html = await doneRes.text();
 
     // The label and the value both live inside a classed column, not a bare
     // <div> — without it, min-width:0 has nothing to attach to and a long
     // address can never shrink far enough for its own ellipsis to engage.
-    const columnMatch = /<div class="([^"]+)">\s*<span class="copy-field-label"/.exec(html);
-    assert.ok(columnMatch, "expected a classed element wrapping the label and value");
+    const columnMatch =
+      /<div class="([^"]+)">\s*<span class="copy-field-label"/.exec(html);
+    assert.ok(
+      columnMatch,
+      "expected a classed element wrapping the label and value",
+    );
     const columnClass = columnMatch[1];
 
-    const cssRes = await fetch(`${t2.baseUrl}/static/handout.css`, { headers: { cookie } });
+    const cssRes = await fetch(`${t2.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
     const css = await cssRes.text();
 
     const columnRule = new RegExp(`\\.${columnClass}\\s*\\{[^}]*\\}`).exec(css);
@@ -110,7 +153,11 @@ test("the done page's Kopierfeld matches the component: a classed, shrinkable le
     assert.match(valueRule[0], /font-family:\s*ui-monospace/);
     assert.match(valueRule[0], /overflow:\s*hidden/);
     assert.match(valueRule[0], /text-overflow:\s*ellipsis/);
-    assert.doesNotMatch(valueRule[0], /word-break/, "the component truncates, it does not wrap");
+    assert.doesNotMatch(
+      valueRule[0],
+      /word-break/,
+      "the component truncates, it does not wrap",
+    );
 
     const buttonRule = /\.copy-field-button\s*\{[^}]*\}/.exec(css);
     assert.ok(buttonRule);
@@ -131,12 +178,22 @@ test("the JSON variant returns 201 with a location", async () => {
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "site.zip", content: TWO_FILE_SITE, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
       { name: "title", value: "My Site" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 201);
@@ -177,12 +234,22 @@ test("413 by a truncated stream (multipart fileSize limit)", async () => {
     const cookie = t2.signSession({ sub: "u1" });
     const bigContent = Buffer.alloc(5000, "a");
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "big.html", content: bigContent, contentType: "text/html" },
+      {
+        type: "file",
+        name: "file",
+        filename: "big.html",
+        content: bigContent,
+        contentType: "text/html",
+      },
       { name: "title", value: "Big file" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 413);
@@ -198,12 +265,23 @@ test("415 for a .docx", async () => {
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "doc.docx", content: Buffer.from("not a docx really"), contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+      {
+        type: "file",
+        name: "file",
+        filename: "doc.docx",
+        content: Buffer.from("not a docx really"),
+        contentType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      },
       { name: "title", value: "A document" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 415);
@@ -219,12 +297,22 @@ test("415 for a .zip whose bytes are not a zip", async () => {
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "fake.zip", content: Buffer.from("this is not a zip file"), contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "fake.zip",
+        content: Buffer.from("this is not a zip file"),
+        contentType: "application/zip",
+      },
       { name: "title", value: "Fake zip" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 415);
@@ -246,12 +334,22 @@ test("415 for a bad zip, asked as JSON, answers application/json with the error 
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "fake.zip", content: Buffer.from("this is not a zip file"), contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "fake.zip",
+        content: Buffer.from("this is not a zip file"),
+        contentType: "application/zip",
+      },
       { name: "title", value: "Fake zip" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 415);
@@ -270,7 +368,13 @@ test("415 for the same bad zip, asked without Accept: application/json, answers 
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "fake.zip", content: Buffer.from("this is not a zip file"), contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "fake.zip",
+        content: Buffer.from("this is not a zip file"),
+        contentType: "application/zip",
+      },
       { name: "title", value: "Fake zip" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
@@ -292,12 +396,22 @@ test("422 for an empty title", async () => {
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "site.zip", content: TWO_FILE_SITE, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
       { name: "title", value: "" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 422);
@@ -313,7 +427,13 @@ test("422 for an empty title, asked without Accept: application/json, marks the 
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "site.zip", content: TWO_FILE_SITE, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
       { name: "title", value: "" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
@@ -326,7 +446,10 @@ test("422 for an empty title, asked without Accept: application/json, marks the 
     assert.ok(html.includes(strings["error.noTitle"]));
     // The design system marks a field in error with a danger border on the
     // input itself, not only the message above the form.
-    assert.match(html, /<input(?=[^>]*data-title-input)(?=[^>]*class="field-input-error")[^>]*>/);
+    assert.match(
+      html,
+      /<input(?=[^>]*data-title-input)(?=[^>]*class="field-input-error")[^>]*>/,
+    );
   } finally {
     await t2.close();
   }
@@ -337,12 +460,22 @@ test("422 for the entryless zip", async () => {
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "entryless.zip", content: ENTRYLESS, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "entryless.zip",
+        content: ENTRYLESS,
+        contentType: "application/zip",
+      },
       { name: "title", value: "Entryless" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 422);
@@ -359,12 +492,22 @@ test("422 for the entryless zip, asked as JSON, answers application/json — not
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "entryless.zip", content: ENTRYLESS, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "entryless.zip",
+        content: ENTRYLESS,
+        contentType: "application/zip",
+      },
       { name: "title", value: "Entryless" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 422);
@@ -383,7 +526,13 @@ test("422 for the same entryless zip, asked without Accept: application/json, an
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "entryless.zip", content: ENTRYLESS, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "entryless.zip",
+        content: ENTRYLESS,
+        contentType: "application/zip",
+      },
       { name: "title", value: "Entryless" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
@@ -405,12 +554,22 @@ test("422 for the traversal zip, and nothing is written outside the data directo
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "evil.zip", content: TRAVERSAL, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "evil.zip",
+        content: TRAVERSAL,
+        contentType: "application/zip",
+      },
       { name: "title", value: "Evil" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
       method: "POST",
-      headers: { cookie, accept: "application/json", "content-type": contentType },
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
       body,
     });
     assert.strictEqual(res.status, 422);
@@ -435,14 +594,23 @@ function dropAreaHasErrorClass(html) {
 }
 
 function titleInputHasErrorClass(html) {
-  return /<input(?=[^>]*data-title-input)(?=[^>]*class="field-input-error")[^>]*>/.test(html);
+  return /<input(?=[^>]*data-title-input)(?=[^>]*class="field-input-error")[^>]*>/.test(
+    html,
+  );
 }
 
 const FILE_RELATED_REFUSALS = [
   {
     name: "unsupported type (.docx)",
     fields: [
-      { type: "file", name: "file", filename: "doc.docx", content: Buffer.from("not a docx"), contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+      {
+        type: "file",
+        name: "file",
+        filename: "doc.docx",
+        content: Buffer.from("not a docx"),
+        contentType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      },
       { name: "title", value: "A document" },
     ],
     status: 415,
@@ -450,7 +618,13 @@ const FILE_RELATED_REFUSALS = [
   {
     name: "no entry file (entryless zip)",
     fields: [
-      { type: "file", name: "file", filename: "entryless.zip", content: ENTRYLESS, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "entryless.zip",
+        content: ENTRYLESS,
+        contentType: "application/zip",
+      },
       { name: "title", value: "Entryless" },
     ],
     status: 422,
@@ -470,8 +644,14 @@ for (const { name, fields, status } of FILE_RELATED_REFUSALS) {
       });
       assert.strictEqual(res.status, status);
       const html = await res.text();
-      assert.ok(dropAreaHasErrorClass(html), `expected the drop area to carry the error class for ${name}`);
-      assert.ok(!titleInputHasErrorClass(html), `expected the title field to stay unframed for ${name}`);
+      assert.ok(
+        dropAreaHasErrorClass(html),
+        `expected the drop area to carry the error class for ${name}`,
+      );
+      assert.ok(
+        !titleInputHasErrorClass(html),
+        `expected the title field to stay unframed for ${name}`,
+      );
     } finally {
       await t2.close();
     }
@@ -483,7 +663,13 @@ test("the missing-title refusal frames the title field, not the drop area", asyn
   try {
     const cookie = t2.signSession({ sub: "u1" });
     const { body, contentType } = buildMultipart([
-      { type: "file", name: "file", filename: "site.zip", content: TWO_FILE_SITE, contentType: "application/zip" },
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
       { name: "title", value: "" },
     ]);
     const res = await fetch(`${t2.baseUrl}/handouts`, {
@@ -493,8 +679,14 @@ test("the missing-title refusal frames the title field, not the drop area", asyn
     });
     assert.strictEqual(res.status, 422);
     const html = await res.text();
-    assert.ok(titleInputHasErrorClass(html), "expected the title field to carry the error class");
-    assert.ok(!dropAreaHasErrorClass(html), "expected the drop area to stay unframed for a title-only refusal");
+    assert.ok(
+      titleInputHasErrorClass(html),
+      "expected the title field to carry the error class",
+    );
+    assert.ok(
+      !dropAreaHasErrorClass(html),
+      "expected the drop area to stay unframed for a title-only refusal",
+    );
   } finally {
     await t2.close();
   }

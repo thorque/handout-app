@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveLabel, forwardedHost, requestOrigin, handoutUrl, safeReturnTo } from "../src/host.js";
+import {
+  resolveLabel,
+  forwardedHost,
+  requestOrigin,
+  handoutUrl,
+  safeReturnTo,
+} from "../src/host.js";
 
 const cases = [
   ["handout.localhost", null],
@@ -19,7 +25,9 @@ for (const [input, expected] of cases) {
 }
 
 test("resolveLabel takes only the first x-forwarded-host value", () => {
-  const headers = { "x-forwarded-host": "abc2defgh3.example.com, evil.example.com" };
+  const headers = {
+    "x-forwarded-host": "abc2defgh3.example.com, evil.example.com",
+  };
   assert.strictEqual(resolveLabel(forwardedHost(headers)), "abc2defgh3");
 });
 

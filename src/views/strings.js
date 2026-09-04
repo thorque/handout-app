@@ -40,7 +40,8 @@ export const strings = {
   "done.another": "Another handout",
 
   // refusals
-  "error.tooLargeClient": "The file is {size}. Handout does not take more than {limit}.",
+  "error.tooLargeClient":
+    "The file is {size}. Handout does not take more than {limit}.",
   "error.tooLarge": "Handout does not take more than {limit}.",
   "error.unsupported": "Zip, HTML or PDF. Handout does not take other forms.",
   "error.noEntry":
@@ -58,6 +59,8 @@ export function t(key, values = {}) {
     throw new Error(`Unknown string key: ${key}`);
   }
   return template.replace(/\{(\w+)\}/g, (match, name) =>
-    Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match,
+    Object.prototype.hasOwnProperty.call(values, name)
+      ? String(values[name])
+      : match,
   );
 }

@@ -20,10 +20,19 @@ function cookieValue(setCookieHeader, name) {
 // a login now starts at the *protected path itself*, not at /auth/login —
 // that interception is where the return path actually enters the flow.
 async function walkProtected(t2, protectedPath) {
-  const interceptRes = await fetch(`${t2.baseUrl}${protectedPath}`, { redirect: "manual" });
-  assert.strictEqual(interceptRes.status, 302, `expected requireUser to redirect for ${protectedPath}`);
+  const interceptRes = await fetch(`${t2.baseUrl}${protectedPath}`, {
+    redirect: "manual",
+  });
+  assert.strictEqual(
+    interceptRes.status,
+    302,
+    `expected requireUser to redirect for ${protectedPath}`,
+  );
   assert.strictEqual(interceptRes.headers.get("location"), "/auth/login");
-  const interceptCookie = cookieValue(interceptRes.headers.get("set-cookie"), "handout_oidc");
+  const interceptCookie = cookieValue(
+    interceptRes.headers.get("set-cookie"),
+    "handout_oidc",
+  );
 
   return walkLoginFrom(t2, interceptCookie);
 }
@@ -38,7 +47,10 @@ async function walkLoginFrom(t2, priorOidcCookie, loginQuery = "") {
   });
   assert.strictEqual(loginRes.status, 302);
   const authorizationUrl = loginRes.headers.get("location");
-  const oidcCookie = cookieValue(loginRes.headers.get("set-cookie"), "handout_oidc");
+  const oidcCookie = cookieValue(
+    loginRes.headers.get("set-cookie"),
+    "handout_oidc",
+  );
 
   const authRes = await fetch(authorizationUrl, { redirect: "manual" });
   assert.strictEqual(authRes.status, 302);
@@ -65,7 +77,10 @@ test("an unauthenticated GET / 302s to the issuer's authorization endpoint with 
     assert.strictEqual(authorizationUrl.origin, t2.stub.url);
     assert.ok(authorizationUrl.searchParams.get("client_id"));
     assert.ok(authorizationUrl.searchParams.get("state"));
-    assert.strictEqual(authorizationUrl.searchParams.get("code_challenge_method"), "S256");
+    assert.strictEqual(
+      authorizationUrl.searchParams.get("code_challenge_method"),
+      "S256",
+    );
     const redirectUri = authorizationUrl.searchParams.get("redirect_uri");
     assert.strictEqual(redirectUri, `${t2.baseUrl}/auth/callback`);
   } finally {
@@ -78,8 +93,14 @@ test("the callback with a matching state sets the session cookie and 302s back t
   try {
     const callbackRes = await walkProtected(t2, "/handouts/abc2defgh3");
     assert.strictEqual(callbackRes.status, 302);
-    assert.strictEqual(callbackRes.headers.get("location"), "/handouts/abc2defgh3");
-    const sessionCookie = cookieValue(callbackRes.headers.get("set-cookie"), "handout_session");
+    assert.strictEqual(
+      callbackRes.headers.get("location"),
+      "/handouts/abc2defgh3",
+    );
+    const sessionCookie = cookieValue(
+      callbackRes.headers.get("set-cookie"),
+      "handout_session",
+    );
     assert.ok(sessionCookie, "expected a handout_session cookie");
   } finally {
     await t2.close();
@@ -89,9 +110,14 @@ test("the callback with a matching state sets the session cookie and 302s back t
 test("the callback with a mismatched state is 400 and sets no session", async () => {
   const t2 = await buildTestServer();
   try {
-    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, { redirect: "manual" });
+    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, {
+      redirect: "manual",
+    });
     const authorizationUrl = loginRes.headers.get("location");
-    const oidcCookie = cookieValue(loginRes.headers.get("set-cookie"), "handout_oidc");
+    const oidcCookie = cookieValue(
+      loginRes.headers.get("set-cookie"),
+      "handout_oidc",
+    );
 
     const authRes = await fetch(authorizationUrl, { redirect: "manual" });
     const callbackUrl = new URL(authRes.headers.get("location"));
@@ -102,7 +128,12 @@ test("the callback with a mismatched state is 400 and sets no session", async ()
       redirect: "manual",
     });
     assert.strictEqual(callbackRes.status, 400);
-    assert.strictEqual(callbackRes.headers.get("set-cookie") ? cookieValue(callbackRes.headers.get("set-cookie"), "handout_session") : null, null);
+    assert.strictEqual(
+      callbackRes.headers.get("set-cookie")
+        ? cookieValue(callbackRes.headers.get("set-cookie"), "handout_session")
+        : null,
+      null,
+    );
     const body = await callbackRes.text();
     assert.ok(body.includes(strings["error.signInFailed"]));
   } finally {
@@ -113,7 +144,11 @@ test("the callback with a mismatched state is 400 and sets no session", async ()
 test("POST /auth/logout clears the session cookie", async () => {
   const t2 = await buildTestServer();
   try {
-    const cookie = t2.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t2.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t2.baseUrl}/auth/logout`, {
       method: "POST",
       headers: { cookie },
@@ -130,14 +165,19 @@ test("POST /auth/logout clears the session cookie", async () => {
 test("a signed-out GET /handouts/:address 302s to /auth/login with no query string, and returns to that same path", async () => {
   const t2 = await buildTestServer();
   try {
-    const res = await fetch(`${t2.baseUrl}/handouts/abc2defgh3`, { redirect: "manual" });
+    const res = await fetch(`${t2.baseUrl}/handouts/abc2defgh3`, {
+      redirect: "manual",
+    });
     assert.strictEqual(res.status, 302);
     // No query parameter at all: the return path travels in the signed
     // handout_oidc cookie this response sets, never on the URL.
     assert.strictEqual(res.headers.get("location"), "/auth/login");
 
     const callbackRes = await walkProtected(t2, "/handouts/abc2defgh3");
-    assert.strictEqual(callbackRes.headers.get("location"), "/handouts/abc2defgh3");
+    assert.strictEqual(
+      callbackRes.headers.get("location"),
+      "/handouts/abc2defgh3",
+    );
   } finally {
     await t2.close();
   }
@@ -160,34 +200,56 @@ test("the OIDC origin split: front channel goes to the issuer origin, back chann
     },
   });
   try {
-    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, { redirect: "manual" });
+    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, {
+      redirect: "manual",
+    });
     assert.strictEqual(loginRes.status, 302);
     const authorizationUrl = new URL(loginRes.headers.get("location"));
     assert.strictEqual(authorizationUrl.origin, issuerOrigin);
     assert.strictEqual(authorizationUrl.pathname, "/auth");
 
-    const oidcCookie = cookieValue(loginRes.headers.get("set-cookie"), "handout_oidc");
+    const oidcCookie = cookieValue(
+      loginRes.headers.get("set-cookie"),
+      "handout_oidc",
+    );
 
     // The browser cannot actually reach idp.example.invalid, but the stub is
     // listening on the same path (/auth) — walk the flow against the stub
     // directly to prove the callback still validates against the assigned
     // issuer and reaches the token endpoint on the back channel.
-    const stubAuthUrl = new URL(authorizationUrl.pathname + authorizationUrl.search, stub.url);
+    const stubAuthUrl = new URL(
+      authorizationUrl.pathname + authorizationUrl.search,
+      stub.url,
+    );
     const authRes = await fetch(stubAuthUrl.href, { redirect: "manual" });
     assert.strictEqual(authRes.status, 302);
     const callbackUrl = authRes.headers.get("location");
 
-    const beforeTokenCalls = stub.requestLog.filter((r) => r.url.startsWith("/token")).length;
+    const beforeTokenCalls = stub.requestLog.filter((r) =>
+      r.url.startsWith("/token"),
+    ).length;
     const callbackRes = await fetch(callbackUrl, {
       headers: { cookie: oidcCookie },
       redirect: "manual",
     });
     assert.strictEqual(callbackRes.status, 302, await callbackRes.text());
-    const afterTokenCalls = stub.requestLog.filter((r) => r.url.startsWith("/token")).length;
-    assert.strictEqual(afterTokenCalls, beforeTokenCalls + 1, "expected the token endpoint to be reached on the stub");
+    const afterTokenCalls = stub.requestLog.filter((r) =>
+      r.url.startsWith("/token"),
+    ).length;
+    assert.strictEqual(
+      afterTokenCalls,
+      beforeTokenCalls + 1,
+      "expected the token endpoint to be reached on the stub",
+    );
 
-    const sessionCookie = cookieValue(callbackRes.headers.get("set-cookie"), "handout_session");
-    assert.ok(sessionCookie, "expected a session cookie after the origin-split flow validated");
+    const sessionCookie = cookieValue(
+      callbackRes.headers.get("set-cookie"),
+      "handout_session",
+    );
+    assert.ok(
+      sessionCookie,
+      "expected a session cookie after the origin-split flow validated",
+    );
   } finally {
     await t2.close();
     await stub.close();
@@ -220,36 +282,54 @@ test("the back-channel rewrite: a discovery document that reports only the publi
     },
   });
   try {
-    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, { redirect: "manual" });
+    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, {
+      redirect: "manual",
+    });
     assert.strictEqual(loginRes.status, 302);
     const authorizationUrl = new URL(loginRes.headers.get("location"));
     assert.strictEqual(authorizationUrl.origin, publicOrigin);
 
-    const oidcCookie = cookieValue(loginRes.headers.get("set-cookie"), "handout_oidc");
+    const oidcCookie = cookieValue(
+      loginRes.headers.get("set-cookie"),
+      "handout_oidc",
+    );
 
     // The browser cannot actually reach id.example.invalid — walk the flow
     // against the stub's real, listening origin instead, the same technique
     // as the origin-split test above.
-    const stubAuthUrl = new URL(authorizationUrl.pathname + authorizationUrl.search, stub.url);
+    const stubAuthUrl = new URL(
+      authorizationUrl.pathname + authorizationUrl.search,
+      stub.url,
+    );
     const authRes = await fetch(stubAuthUrl.href, { redirect: "manual" });
     assert.strictEqual(authRes.status, 302);
     const callbackUrl = authRes.headers.get("location");
 
-    const beforeTokenCalls = stub.requestLog.filter((r) => r.url.startsWith("/token")).length;
+    const beforeTokenCalls = stub.requestLog.filter((r) =>
+      r.url.startsWith("/token"),
+    ).length;
     const callbackRes = await fetch(callbackUrl, {
       headers: { cookie: oidcCookie },
       redirect: "manual",
     });
     assert.strictEqual(callbackRes.status, 302, await callbackRes.text());
-    const afterTokenCalls = stub.requestLog.filter((r) => r.url.startsWith("/token")).length;
+    const afterTokenCalls = stub.requestLog.filter((r) =>
+      r.url.startsWith("/token"),
+    ).length;
     assert.strictEqual(
       afterTokenCalls,
       beforeTokenCalls + 1,
       "expected the token endpoint to be reached on the real back-channel origin, not the public one the document reported",
     );
 
-    const sessionCookie = cookieValue(callbackRes.headers.get("set-cookie"), "handout_session");
-    assert.ok(sessionCookie, "expected a session cookie once the back-channel call reached the stub");
+    const sessionCookie = cookieValue(
+      callbackRes.headers.get("set-cookie"),
+      "handout_session",
+    );
+    assert.ok(
+      sessionCookie,
+      "expected a session cookie once the back-channel call reached the stub",
+    );
   } finally {
     await t2.close();
     await stub.close();
@@ -290,8 +370,16 @@ test("GET /auth/login?returnTo=<payload> ignores the query entirely, for every p
       // encodeURIComponent so every payload survives as a syntactically
       // valid query value, regardless of what characters it carries — the
       // whole point of this test is that none of it is ever read anyway.
-      const callbackRes = await walkLoginFrom(t2, null, `?returnTo=${encodeURIComponent(payload)}`);
-      assert.strictEqual(callbackRes.status, 302, `payload ${payload} must redirect, not error`);
+      const callbackRes = await walkLoginFrom(
+        t2,
+        null,
+        `?returnTo=${encodeURIComponent(payload)}`,
+      );
+      assert.strictEqual(
+        callbackRes.status,
+        302,
+        `payload ${payload} must redirect, not error`,
+      );
       assert.strictEqual(
         callbackRes.headers.get("location"),
         "/",
@@ -310,8 +398,13 @@ test("an attacker-appended returnTo on a legitimate, in-flight login is still ig
     // handout_oidc cookie. Appending ?returnTo=... to the /auth/login link
     // before sending it on (the attacker's only remaining lever) must not
     // move the flow away from what that cookie already says.
-    const interceptRes = await fetch(`${t2.baseUrl}/handouts/abc2defgh3`, { redirect: "manual" });
-    const interceptCookie = cookieValue(interceptRes.headers.get("set-cookie"), "handout_oidc");
+    const interceptRes = await fetch(`${t2.baseUrl}/handouts/abc2defgh3`, {
+      redirect: "manual",
+    });
+    const interceptCookie = cookieValue(
+      interceptRes.headers.get("set-cookie"),
+      "handout_oidc",
+    );
 
     const callbackRes = await walkLoginFrom(
       t2,
@@ -319,7 +412,10 @@ test("an attacker-appended returnTo on a legitimate, in-flight login is still ig
       "?returnTo=https://evil.example.invalid/phish",
     );
     assert.strictEqual(callbackRes.status, 302);
-    assert.strictEqual(callbackRes.headers.get("location"), "/handouts/abc2defgh3");
+    assert.strictEqual(
+      callbackRes.headers.get("location"),
+      "/handouts/abc2defgh3",
+    );
   } finally {
     await t2.close();
   }
@@ -341,7 +437,10 @@ test("returnTo keeps a legitimate same-origin path intact", async () => {
   try {
     const callbackRes = await walkProtected(t2, "/handouts/abc2defgh3");
     assert.strictEqual(callbackRes.status, 302);
-    assert.strictEqual(callbackRes.headers.get("location"), "/handouts/abc2defgh3");
+    assert.strictEqual(
+      callbackRes.headers.get("location"),
+      "/handouts/abc2defgh3",
+    );
   } finally {
     await t2.close();
   }
@@ -378,7 +477,11 @@ test("a dot-segment or double-encoded :address survives a real login as a 302 th
     const requestOrigin = t2.baseUrl;
     for (const address of ROUTABLE_DOT_SEGMENT_ADDRESSES) {
       const callbackRes = await walkProtected(t2, `/handouts/${address}`);
-      assert.strictEqual(callbackRes.status, 302, `address ${address} must redirect, not error`);
+      assert.strictEqual(
+        callbackRes.status,
+        302,
+        `address ${address} must redirect, not error`,
+      );
       const location = callbackRes.headers.get("location");
       const resolved = new URL(location, requestOrigin);
       assert.strictEqual(
@@ -396,8 +499,14 @@ test("the two dot-segment addresses Fastify's own router rejects never reach the
   const t2 = await buildTestServer();
   try {
     for (const address of ["..//evil.com", ".//evil.com"]) {
-      const res = await fetch(`${t2.baseUrl}/handouts/${address}`, { redirect: "manual" });
-      assert.strictEqual(res.status, 404, `address ${address} must not reach the route`);
+      const res = await fetch(`${t2.baseUrl}/handouts/${address}`, {
+        redirect: "manual",
+      });
+      assert.strictEqual(
+        res.status,
+        404,
+        `address ${address} must not reach the route`,
+      );
     }
   } finally {
     await t2.close();

@@ -15,9 +15,15 @@ import { TWO_FILE_SITE, TRAVERSAL, AMBIGUOUS } from "./helpers/zip.js";
 
 const entryCases = [
   [["index.html", "assets/app.css"], { root: "", entry: "index.html" }],
-  [["dist/index.html", "dist/assets/app.css"], { root: "dist", entry: "index.html" }],
+  [
+    ["dist/index.html", "dist/assets/app.css"],
+    { root: "dist", entry: "index.html" },
+  ],
   [["dist/index.html", "README.md"], { root: "dist", entry: "index.html" }],
-  [["docs/Prototyp.html", "docs/img/a.png"], { root: "docs", entry: "Prototyp.html" }],
+  [
+    ["docs/Prototyp.html", "docs/img/a.png"],
+    { root: "docs", entry: "Prototyp.html" },
+  ],
 ];
 
 for (const [members, expected] of entryCases) {
@@ -80,7 +86,8 @@ test("resolveZipEntry still refuses a genuinely ambiguous zip (several real HTML
   // HANDOUT-15 is where a list of candidates gets offered to the publisher;
   // this story does not start guessing among them.
   assert.throws(
-    () => resolveZipEntry(["Site/a.html", "Site/b.html", "__MACOSX/Site/._a.html"]),
+    () =>
+      resolveZipEntry(["Site/a.html", "Site/b.html", "__MACOSX/Site/._a.html"]),
     NoEntryError,
   );
 });
@@ -133,7 +140,13 @@ test("materialise leaves the staging root empty after an ambiguous zip (NoEntryE
   await withTempConfig(async (config) => {
     const sourcePath = await writeZipFixture(config, AMBIGUOUS);
     await assert.rejects(
-      () => materialise({ kind: "zip", sourcePath, filename: "upload.zip", config }),
+      () =>
+        materialise({
+          kind: "zip",
+          sourcePath,
+          filename: "upload.zip",
+          config,
+        }),
       NoEntryError,
     );
     assert.deepStrictEqual(await stagingEntries(config), []);
@@ -144,7 +157,13 @@ test("materialise leaves the staging root empty after an unsafe zip (UnsafeZipEr
   await withTempConfig(async (config) => {
     const sourcePath = await writeZipFixture(config, TRAVERSAL);
     await assert.rejects(
-      () => materialise({ kind: "zip", sourcePath, filename: "upload.zip", config }),
+      () =>
+        materialise({
+          kind: "zip",
+          sourcePath,
+          filename: "upload.zip",
+          config,
+        }),
       UnsafeZipError,
     );
     assert.deepStrictEqual(await stagingEntries(config), []);
@@ -154,7 +173,12 @@ test("materialise leaves the staging root empty after an unsafe zip (UnsafeZipEr
 test("materialise, the control case: a successful call keeps its staging directory with the extracted content plus .handout", async () => {
   await withTempConfig(async (config) => {
     const sourcePath = await writeZipFixture(config, TWO_FILE_SITE);
-    const result = await materialise({ kind: "zip", sourcePath, filename: "upload.zip", config });
+    const result = await materialise({
+      kind: "zip",
+      sourcePath,
+      filename: "upload.zip",
+      config,
+    });
 
     assert.deepStrictEqual(await stagingEntries(config), [result.token]);
     const stagingDir = path.join(paths(config).staging, result.token);

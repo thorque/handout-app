@@ -70,7 +70,9 @@ export default async function authRoutes(fastify) {
       email: claims.email || "",
     });
 
-    return reply.redirect(safeReturnTo(oidcState.returnTo, requestOrigin(request)));
+    return reply.redirect(
+      safeReturnTo(oidcState.returnTo, requestOrigin(request)),
+    );
   });
 
   fastify.post("/auth/logout", async (request, reply) => {

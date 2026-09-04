@@ -25,7 +25,6 @@ function unknownAddressPage(reply) {
 // `pool` is accepted but unused in this story: a deleted handout's address
 // still has no `.handout` file once HANDOUT-11 exists, so the filesystem
 // check alone already answers 404 for both "never existed" and "deleted".
-// eslint-disable-next-line no-unused-vars
 export async function serveContent(request, reply, address, pool, config) {
   const meta = await readMeta(config, address);
   if (!meta) {

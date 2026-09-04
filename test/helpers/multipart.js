@@ -13,7 +13,9 @@ export function buildMultipart(fields) {
             `Content-Disposition: form-data; name="${field.name}"; filename="${field.filename}"\r\n` +
             `Content-Type: ${field.contentType || "application/octet-stream"}\r\n\r\n`,
         ),
-        Buffer.isBuffer(field.content) ? field.content : Buffer.from(field.content),
+        Buffer.isBuffer(field.content)
+          ? field.content
+          : Buffer.from(field.content),
         Buffer.from("\r\n"),
       );
     } else {

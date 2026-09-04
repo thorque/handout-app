@@ -26,7 +26,10 @@ test("loadConfig({}) throws once naming all twelve variables", () => {
     (err) => {
       assert.equal(CONFIG_VARIABLES.length, 12);
       for (const name of CONFIG_VARIABLES) {
-        assert.ok(err.message.includes(name), `expected message to mention ${name}`);
+        assert.ok(
+          err.message.includes(name),
+          `expected message to mention ${name}`,
+        );
       }
       return true;
     },

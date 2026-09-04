@@ -61,7 +61,10 @@ function header(user) {
 </header>`;
 }
 
-export function page({ title, user, body, config }) {
+// `config` is accepted (every caller passes it, matching the shared view
+// signature) but not read here — nothing in the shell currently varies by
+// configuration.
+export function page({ title, user, body }) {
   return `<!doctype html>
 <html lang="en">
 <head>

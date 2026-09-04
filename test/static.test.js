@@ -40,7 +40,11 @@ function classOfElementWrapping(html, marker) {
       }
     }
 
-    if (closeStart !== -1 && markerIndex < closeStart && openEnd > bestOpenEnd) {
+    if (
+      closeStart !== -1 &&
+      markerIndex < closeStart &&
+      openEnd > bestOpenEnd
+    ) {
       bestClass = match[1];
       bestOpenEnd = openEnd;
     }
@@ -64,7 +68,11 @@ function extractLocalReferences(html) {
 test("GET / follows every local reference the page carries", async () => {
   const t = await buildTestServer();
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     assert.strictEqual(res.status, 200);
     const html = await res.text();
@@ -78,10 +86,17 @@ test("GET / follows every local reference the page carries", async () => {
       const body = await refRes.arrayBuffer();
       assert.ok(body.byteLength > 0, `expected non-empty body for ${ref}`);
       const contentType = refRes.headers.get("content-type");
-      assert.strictEqual(contentType, contentTypeFor(ref), `content type for ${ref}`);
+      assert.strictEqual(
+        contentType,
+        contentTypeFor(ref),
+        `content type for ${ref}`,
+      );
     }
 
-    assert.ok(html.includes(`data-pick>${strings["drop.pick"]}</button>`) || html.includes(`>${strings["drop.pick"]}<`));
+    assert.ok(
+      html.includes(`data-pick>${strings["drop.pick"]}</button>`) ||
+        html.includes(`>${strings["drop.pick"]}<`),
+    );
   } finally {
     await t.close();
   }
@@ -90,14 +105,26 @@ test("GET / follows every local reference the page carries", async () => {
 test("GET / carries a real focusable choose-file button and a hidden file input", async () => {
   const t = await buildTestServer();
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
-    assert.match(html, /<button type="button" class="drop-pick-button" data-pick>/);
-    assert.match(html, /<input[^>]*type="file"[^>]*tabindex="-1"[^>]*aria-hidden="true"/);
+    assert.match(
+      html,
+      /<button type="button" class="drop-pick-button" data-pick>/,
+    );
+    assert.match(
+      html,
+      /<input[^>]*type="file"[^>]*tabindex="-1"[^>]*aria-hidden="true"/,
+    );
 
-    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, { headers: { cookie } });
+    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
     const css = await cssRes.text();
     assert.match(css, /:focus-visible\s*\{[^}]*outline:/);
   } finally {
@@ -108,10 +135,17 @@ test("GET / carries a real focusable choose-file button and a hidden file input"
 test("GET / builds the upload ceiling from configuration, not a template literal", async () => {
   const t = await buildTestServer({ maxUploadBytes: 1048576 });
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
-    assert.ok(html.includes("up to 1 MB"), "expected the literal 'up to 1 MB' in the page");
+    assert.ok(
+      html.includes("up to 1 MB"),
+      "expected the literal 'up to 1 MB' in the page",
+    );
     assert.ok(
       html.includes('data-max-upload-bytes="1048576"'),
       "expected the literal data-max-upload-bytes attribute",
@@ -124,7 +158,11 @@ test("GET / builds the upload ceiling from configuration, not a template literal
 test("the drop area's empty and filled wrappers are classed, and space their own children", async () => {
   const t = await buildTestServer();
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
@@ -133,11 +171,19 @@ test("the drop area's empty and filled wrappers are classed, and space their own
     // carry its own class and its own display: flex/gap, or the headline,
     // hint and button (or name, size and button) stack with zero spacing.
     const emptyClass = classOfElementWrapping(html, "data-drop-headline");
-    assert.ok(emptyClass, "expected the element wrapping [data-drop-headline] to carry a class");
+    assert.ok(
+      emptyClass,
+      "expected the element wrapping [data-drop-headline] to carry a class",
+    );
     const filledClass = classOfElementWrapping(html, "data-filled-name");
-    assert.ok(filledClass, "expected the element wrapping [data-filled-name] to carry a class");
+    assert.ok(
+      filledClass,
+      "expected the element wrapping [data-filled-name] to carry a class",
+    );
 
-    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, { headers: { cookie } });
+    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
     const css = await cssRes.text();
 
     const emptyRule = new RegExp(`\\.${emptyClass}\\s*\\{[^}]*\\}`).exec(css);
@@ -165,7 +211,10 @@ function findHiddenElements(html) {
     const [, tag, attrs] = match;
     if (!/(?:^|\s)hidden(?:$|\s|>)/.test(attrs)) continue;
     const classMatch = /class="([^"]*)"/.exec(attrs);
-    found.push({ tag, classes: classMatch ? classMatch[1].split(/\s+/).filter(Boolean) : [] });
+    found.push({
+      tag,
+      classes: classMatch ? classMatch[1].split(/\s+/).filter(Boolean) : [],
+    });
   }
   return found;
 }
@@ -173,7 +222,11 @@ function findHiddenElements(html) {
 test("every element toggled with the hidden attribute actually stays hidden", async () => {
   const t = await buildTestServer();
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
@@ -187,11 +240,18 @@ test("every element toggled with the hidden attribute actually stays hidden", as
       `expected at least 4 elements carrying the hidden attribute, found ${hiddenElements.length}`,
     );
 
-    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, { headers: { cookie } });
+    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
     const css = await cssRes.text();
 
-    const globalGuard = /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.exec(css);
-    assert.ok(globalGuard, "expected a global [hidden] { display: none !important; } rule");
+    const globalGuard = /\[hidden\]\s*\{[^}]*display:\s*none\s*!important/.exec(
+      css,
+    );
+    assert.ok(
+      globalGuard,
+      "expected a global [hidden] { display: none !important; } rule",
+    );
 
     // Belt and braces: if the global guard were ever removed, an element
     // whose own class also sets `display` would silently become visible
@@ -226,7 +286,11 @@ test("every element toggled with the hidden attribute actually stays hidden", as
 test("the drop area, the title field and the Publish button are exactly what an upload hides, and all start visible", async () => {
   const t = await buildTestServer();
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
@@ -236,7 +300,9 @@ test("the drop area, the title field and the Publish button are exactly what an 
     // field or the Publish button in between.
     const fileInputEnd = html.indexOf(">", html.indexOf("data-file-input")) + 1;
     const uploadPhaseStart = html.indexOf('<div class="upload-phase"');
-    const between = html.slice(fileInputEnd, uploadPhaseStart).replace(/<!--[\s\S]*?-->/g, "");
+    const between = html
+      .slice(fileInputEnd, uploadPhaseStart)
+      .replace(/<!--[\s\S]*?-->/g, "");
     assert.match(
       between.trim(),
       /^<\/div>$/,
@@ -253,7 +319,10 @@ test("the drop area, the title field and the Publish button are exactly what an 
     // No heading inside the upload block: the page's own "New handout" and
     // lead above it stay visible throughout, so this needs no context of
     // its own.
-    const uploadPhaseBlock = /<div\s+class="upload-phase"[^>]*>[\s\S]*?<div\s+class="field"/.exec(html)[0];
+    const uploadPhaseBlock =
+      /<div\s+class="upload-phase"[^>]*>[\s\S]*?<div\s+class="field"/.exec(
+        html,
+      )[0];
     assert.doesNotMatch(uploadPhaseBlock, /<h1/);
 
     // The other two elements an upload hides — the title field block and
@@ -263,7 +332,9 @@ test("the drop area, the title field and the Publish button are exactly what an 
     assert.match(fieldTag, /data-field\b/);
     assert.doesNotMatch(fieldTag, /\bhidden\b/);
 
-    const publishButtonTag = /<button[^>]*data-publish-button[^>]*>/.exec(html)[0];
+    const publishButtonTag = /<button[^>]*data-publish-button[^>]*>/.exec(
+      html,
+    )[0];
     assert.doesNotMatch(publishButtonTag, /\bhidden\b/);
   } finally {
     await t.close();
@@ -273,8 +344,14 @@ test("the drop area, the title field and the Publish button are exactly what an 
 test("a refusal is styled with the danger colour, not conveyed by colour alone", async () => {
   const t = await buildTestServer();
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
-    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, { headers: { cookie } });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
+    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
     const css = await cssRes.text();
 
     // The drop-message is the primary feedback on a large surface, so it
@@ -296,8 +373,14 @@ test("a refusal is styled with the danger colour, not conveyed by colour alone",
     // an inset shadow and the danger-quiet background.
     const dropAreaErrorRule = /\.drop-area\.error\s*\{[^}]*\}/.exec(css);
     assert.ok(dropAreaErrorRule, "expected a .drop-area.error rule");
-    assert.match(dropAreaErrorRule[0], /border:[^;]*dashed[^;]*var\(--danger\)/);
-    assert.match(dropAreaErrorRule[0], /box-shadow:\s*inset[^;]*var\(--danger\)/);
+    assert.match(
+      dropAreaErrorRule[0],
+      /border:[^;]*dashed[^;]*var\(--danger\)/,
+    );
+    assert.match(
+      dropAreaErrorRule[0],
+      /box-shadow:\s*inset[^;]*var\(--danger\)/,
+    );
     assert.match(dropAreaErrorRule[0], /background:\s*var\(--danger-quiet\)/);
 
     // The field-level treatment the design system uses for an invalid
@@ -312,7 +395,11 @@ test("a refusal is styled with the danger colour, not conveyed by colour alone",
     const fieldHintErrorRule = /\.field-hint-error\s*\{[^}]*\}/.exec(css);
     assert.ok(fieldHintErrorRule, "expected a .field-hint-error rule");
     assert.match(fieldHintErrorRule[0], /color:\s*var\(--danger-ink\)/);
-    assert.doesNotMatch(fieldHintErrorRule[0], /font-size/, "the field-level message keeps the 13px hint size, not its own");
+    assert.doesNotMatch(
+      fieldHintErrorRule[0],
+      /font-size/,
+      "the field-level message keeps the 13px hint size, not its own",
+    );
   } finally {
     await t.close();
   }
@@ -321,7 +408,11 @@ test("a refusal is styled with the danger colour, not conveyed by colour alone",
 test("the profile toggle and panel share the positioned header row, not the button", async () => {
   const t = await buildTestServer();
   try {
-    const cookie = t.signSession({ sub: "u1", name: "Test User", email: "t@example.invalid" });
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
@@ -329,13 +420,17 @@ test("the profile toggle and panel share the positioned header row, not the butt
     // child of the header row itself, which is what carries
     // `position: relative`. A relative button does nothing for an
     // absolutely-positioned sibling.
-    const headerMatch = /<header class="header">([\s\S]*?)<\/header>/.exec(html);
+    const headerMatch = /<header class="header">([\s\S]*?)<\/header>/.exec(
+      html,
+    );
     assert.ok(headerMatch, 'expected a <header class="header"> element');
     const headerRow = headerMatch[1];
     assert.match(headerRow, /data-profile-toggle/);
     assert.match(headerRow, /data-profile-panel/);
 
-    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, { headers: { cookie } });
+    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
     const css = await cssRes.text();
     const headerRule = /\.header\s*\{[^}]*\}/.exec(css);
     assert.ok(headerRule, "expected a .header rule");

@@ -10,7 +10,13 @@ export function formatBytes(bytes) {
   return `${Math.round(bytes / 1024)} KB`;
 }
 
-export function renderNewHandout({ user, config, fileError, titleError, title }) {
+export function renderNewHandout({
+  user,
+  config,
+  fileError,
+  titleError,
+  title,
+}) {
   const limit = formatBytes(config.maxUploadBytes);
 
   const body = `

@@ -9,7 +9,7 @@
     function currentTheme() {
       try {
         return localStorage.getItem("handout-theme") || "system";
-      } catch (e) {
+      } catch {
         return "system";
       }
     }
@@ -26,7 +26,7 @@
     function setTheme(theme) {
       try {
         localStorage.setItem("handout-theme", theme);
-      } catch (e) {
+      } catch {
         // ignore
       }
       if (theme === "light" || theme === "dark") {
@@ -67,7 +67,11 @@
     });
 
     document.addEventListener("pointerdown", function (event) {
-      if (!panel.hidden && !panel.contains(event.target) && event.target !== toggle) {
+      if (
+        !panel.hidden &&
+        !panel.contains(event.target) &&
+        event.target !== toggle
+      ) {
         close();
       }
     });
@@ -126,7 +130,9 @@
 
   function substitute(template, values) {
     return template.replace(/\{(\w+)\}/g, function (match, name) {
-      return Object.prototype.hasOwnProperty.call(values, name) ? values[name] : match;
+      return Object.prototype.hasOwnProperty.call(values, name)
+        ? values[name]
+        : match;
     });
   }
 
@@ -148,9 +154,15 @@
     var fieldBlock = form.querySelector("[data-field]");
     var publishButton = form.querySelector("[data-publish-button]");
     var uploadBox = form.querySelector("[data-upload-box]");
-    var uploadFile = uploadBox ? uploadBox.querySelector("[data-upload-file]") : null;
-    var uploadPercent = uploadBox ? uploadBox.querySelector("[data-upload-percent]") : null;
-    var uploadFill = uploadBox ? uploadBox.querySelector("[data-upload-fill]") : null;
+    var uploadFile = uploadBox
+      ? uploadBox.querySelector("[data-upload-file]")
+      : null;
+    var uploadPercent = uploadBox
+      ? uploadBox.querySelector("[data-upload-percent]")
+      : null;
+    var uploadFill = uploadBox
+      ? uploadBox.querySelector("[data-upload-fill]")
+      : null;
 
     var maxUploadBytes = Number(dropArea.getAttribute("data-max-upload-bytes"));
     var allowedExtensions = [".zip", ".html", ".htm", ".pdf"];
@@ -194,13 +206,17 @@
     function updatePublishButton() {
       if (!selectedFile) {
         publishButton.disabled = true;
-        publishButton.textContent = publishButton.getAttribute("data-label-no-file");
+        publishButton.textContent =
+          publishButton.getAttribute("data-label-no-file");
       } else if (!titleInput.value.trim()) {
         publishButton.disabled = true;
-        publishButton.textContent = publishButton.getAttribute("data-label-no-title");
+        publishButton.textContent = publishButton.getAttribute(
+          "data-label-no-title",
+        );
       } else {
         publishButton.disabled = false;
-        publishButton.textContent = publishButton.getAttribute("data-label-ready");
+        publishButton.textContent =
+          publishButton.getAttribute("data-label-ready");
       }
     }
 
@@ -276,7 +292,11 @@
       });
     });
     dropArea.addEventListener("drop", function (event) {
-      if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]) {
+      if (
+        event.dataTransfer &&
+        event.dataTransfer.files &&
+        event.dataTransfer.files[0]
+      ) {
         acceptFile(event.dataTransfer.files[0]);
       }
     });
@@ -311,7 +331,9 @@
       publishButton.hidden = true;
       if (uploadBox) {
         uploadBox.hidden = false;
-        if (uploadFile) uploadFile.textContent = selectedFile.name + " · " + formatBytes(selectedFile.size);
+        if (uploadFile)
+          uploadFile.textContent =
+            selectedFile.name + " · " + formatBytes(selectedFile.size);
       }
 
       // Every terminal outcome — success, refusal, a transport error, a
@@ -334,7 +356,9 @@
 
       xhr.upload.onprogress = function (progressEvent) {
         if (!progressEvent.lengthComputable || !uploadFill) return;
-        var percent = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+        var percent = Math.round(
+          (progressEvent.loaded / progressEvent.total) * 100,
+        );
         uploadFill.style.width = percent + "%";
         if (uploadPercent) uploadPercent.textContent = percent + "%";
       };
@@ -349,7 +373,7 @@
         var response = null;
         try {
           response = JSON.parse(xhr.responseText);
-        } catch (e) {
+        } catch {
           // fall through with response left null
         }
 

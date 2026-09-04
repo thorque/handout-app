@@ -34,10 +34,12 @@ export async function createOidc(config) {
 
   const metadata = { ...document };
   for (const field of FRONT_CHANNEL_FIELDS) {
-    if (metadata[field]) metadata[field] = withOrigin(metadata[field], issuerOrigin);
+    if (metadata[field])
+      metadata[field] = withOrigin(metadata[field], issuerOrigin);
   }
   for (const field of BACK_CHANNEL_FIELDS) {
-    if (metadata[field]) metadata[field] = withOrigin(metadata[field], backchannelOrigin);
+    if (metadata[field])
+      metadata[field] = withOrigin(metadata[field], backchannelOrigin);
   }
   metadata.issuer = config.oidcIssuerUrl;
 

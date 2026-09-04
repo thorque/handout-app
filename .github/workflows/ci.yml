@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # PostgreSQL and nothing else: the test suite stands up its own stub
+    # OIDC provider in-process (see test/helpers/oidc-stub.js) and never
+    # touches Caddy or Keycloak. The full chain lives in the compose blocks
+    # under .monoceros/deploy.md, for bringing up the whole product — do not
+    # add Caddy or Keycloak here "for symmetry" with that file; the tests do
+    # not need them.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # test/helpers/app.js reads POSTGRES_URL, not DATABASE_URL — an
+      # undocumented thirteenth environment variable the test suite needs
+      # that the application itself never does (see .env.example and the
+      # README's configuration table for the twelve the application reads).
+      # The role has to be allowed to CREATE DATABASE: the suite creates and
+      # drops handout_test around every test file. The `postgres` superuser
+      # the service starts with already can.
+      POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test

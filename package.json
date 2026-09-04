@@ -7,7 +7,10 @@
   },
   "scripts": {
     "start": "node --env-file=.env src/server.js",
-    "test": "node --test --test-concurrency=1 test/*.test.js"
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@fastify/cookie": "11.1.2",
@@ -18,5 +21,10 @@
     "openid-client": "6.8.7",
     "pg": "8.23.0",
     "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.10.0",
+    "prettier": "3.9.6"
   }
 }

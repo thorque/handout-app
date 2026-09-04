@@ -71,6 +71,14 @@ sentence as a comment above each:
 | `SESSION_SECRET` | signs the session cookie |
 | `SESSION_COOKIE_SECURE` | `Secure` on the cookies (`true`/`false`) |
 
+A thirteenth variable, `POSTGRES_URL`, is needed only by the **test suite**
+(`test/helpers/app.js`), never by the application itself: it is the
+connection the tests use to create and drop the throwaway `handout_test`
+database around each test file, so the role behind it must be allowed to
+`CREATE DATABASE`. Anyone cloning this repository needs it set to run
+`npm test`, even though the application never reads it. It is documented in
+`.env.example` alongside the other twelve.
+
 ## Running it
 
 In the Monoceros workbench:

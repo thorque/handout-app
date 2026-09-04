@@ -56,7 +56,11 @@ const MAX_RETURN_TO_LENGTH = 2048;
 // whole point of the second line, and it is also what makes the function
 // idempotent, so calling it more than once is harmless.
 export function safeReturnTo(value, requestOrigin) {
-  if (typeof value !== "string" || value === "" || value.length > MAX_RETURN_TO_LENGTH) {
+  if (
+    typeof value !== "string" ||
+    value === "" ||
+    value.length > MAX_RETURN_TO_LENGTH
+  ) {
     return "/";
   }
   try {

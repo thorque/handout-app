@@ -17,16 +17,25 @@ test("generateAddress produces well-formed, varied, full-alphabet labels", () =>
     assert.strictEqual(address.length, 10);
     assert.match(address, ADDRESS_PATTERN);
     for (const forbidden of ["l", "o", "0", "1"]) {
-      assert.ok(!address.includes(forbidden), `${address} must not contain ${forbidden}`);
+      assert.ok(
+        !address.includes(forbidden),
+        `${address} must not contain ${forbidden}`,
+      );
     }
   }
 
   const distinct = new Set(draws);
-  assert.ok(distinct.size >= 1990, `expected at least 1990 distinct addresses, got ${distinct.size}`);
+  assert.ok(
+    distinct.size >= 1990,
+    `expected at least 1990 distinct addresses, got ${distinct.size}`,
+  );
 
   const seen = new Set(draws.join("").split(""));
   for (const char of ADDRESS_ALPHABET) {
-    assert.ok(seen.has(char), `alphabet character ${char} never appeared across the draws`);
+    assert.ok(
+      seen.has(char),
+      `alphabet character ${char} never appeared across the draws`,
+    );
   }
 });
 

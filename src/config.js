@@ -30,16 +30,23 @@ function isPort(value) {
 }
 
 export function loadConfig(env = process.env) {
-  const missing = VARIABLES.filter((name) => env[name] === undefined || env[name] === "");
+  const missing = VARIABLES.filter(
+    (name) => env[name] === undefined || env[name] === "",
+  );
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`,
+    );
   }
 
   const invalid = [];
   if (!isPort(env.PORT)) invalid.push("PORT");
-  if (!isPositiveInteger(env.MAX_UPLOAD_BYTES)) invalid.push("MAX_UPLOAD_BYTES");
-  if (!isBoolean(env.OIDC_ALLOW_INSECURE_HTTP)) invalid.push("OIDC_ALLOW_INSECURE_HTTP");
-  if (!isBoolean(env.SESSION_COOKIE_SECURE)) invalid.push("SESSION_COOKIE_SECURE");
+  if (!isPositiveInteger(env.MAX_UPLOAD_BYTES))
+    invalid.push("MAX_UPLOAD_BYTES");
+  if (!isBoolean(env.OIDC_ALLOW_INSECURE_HTTP))
+    invalid.push("OIDC_ALLOW_INSECURE_HTTP");
+  if (!isBoolean(env.SESSION_COOKIE_SECURE))
+    invalid.push("SESSION_COOKIE_SECURE");
   if (invalid.length > 0) {
     throw new Error(`Invalid environment variables: ${invalid.join(", ")}`);
   }

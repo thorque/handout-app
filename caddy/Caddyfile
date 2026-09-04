@@ -1,0 +1,9 @@
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$CADDY_SITE_ADDRESS} {
+	reverse_proxy {$APP_HOST}:{$APP_PORT}
+}

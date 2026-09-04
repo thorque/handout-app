@@ -2,3 +2,11 @@
 node_modules/
 .env
 .DS_Store
+data/
+*.tgz
+
+# The container-wide gitignore excludes .monoceros/ everywhere (it means the
+# workspace root's own Monoceros-managed directory), which would otherwise
+# also swallow this project's own launch config.
+!.monoceros/
+!.monoceros/launch.json

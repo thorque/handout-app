@@ -1,0 +1,10 @@
+node_modules/
+data/
+package-lock.json
+src/public/fonts/
+
+# Prose, not code: prettier's markdown formatting mostly rewraps paragraphs
+# and lists, which would disturb carefully-worded ADRs and README text for
+# no benefit. CLAUDE.md in particular is out of scope for this story.
+*.md
+docs/**/*.md

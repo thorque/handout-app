@@ -71,7 +71,7 @@ reopened; it is superseded by a new ADR that says so.
 
 Server rendered. JavaScript only where HTML cannot do the job: dropping a file,
 upload progress, copy to clipboard. Paper as the ground, ink as the text, one
-accent, red only for deletion. No shadows, hairline rules, nearly square
+accent, red for deletion and for errors. No shadows, hairline rules, nearly square
 corners, no house colour, no imagery. Light and dark through
 `prefers-color-scheme` plus a switch (light, dark, system; system by default,
 stored per device). Contrast AA in both. The font ships with the app, two

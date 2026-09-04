@@ -1,0 +1,48 @@
+{
+  "realm": "handout",
+  "enabled": true,
+  "sslRequired": "none",
+  "attributes": {
+    "frontendUrl": "http://handout-keycloak.localhost"
+  },
+  "clients": [
+    {
+      "clientId": "handout-web",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "handout-workbench-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "enabled": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "redirectUris": [
+        "http://handout-caddy.localhost/auth/callback",
+        "http://handout.localhost/auth/callback",
+        "http://handout.localhost:81/auth/callback",
+        "http://localhost:3000/auth/callback"
+      ],
+      "webOrigins": ["+"]
+    }
+  ],
+  "users": [
+    {
+      "username": "miriam",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Miriam",
+      "lastName": "Publisher",
+      "email": "miriam@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "handout",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

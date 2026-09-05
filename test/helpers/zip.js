@@ -104,6 +104,8 @@ export const ENTRYLESS = buildZip([
 
 export const TRAVERSAL = buildZip([{ name: "../etc/passwd", content: "nope" }]);
 
+// Now an *ambiguous* zip (docs/adr/0012), not a refused one: two HTML files,
+// no index.html, no wrapper folder.
 export const AMBIGUOUS = buildZip([
   { name: "a.html", content: "<html><body>a</body></html>" },
   { name: "b.html", content: "<html><body>b</body></html>" },
@@ -115,6 +117,37 @@ export const AMBIGUOUS = buildZip([
 const PNG_BYTES = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
   "base64",
+);
+
+// The shape a real export tool produces (neutral name on purpose —
+// check:refs forbids naming a design tool in the tree): several HTML pages
+// at the root, a shared script, and an uploads/ folder holding an
+// index.html of its own — the exact case that used to resolve silently to
+// `uploads/` and hide the real pages (docs/adr/0012). "page-two.html" is the
+// one criterion 2 exercises: it references both a script and an image with
+// relative paths.
+export const MULTI_PAGE_EXPORT = buildZip([
+  { name: "page-one.html", content: "<html><body>Page one</body></html>" },
+  {
+    name: "page-two.html",
+    content:
+      '<html><body>Page two<script src="support.js"></script><img src="uploads/pixel.png"></body></html>',
+  },
+  { name: "support.js", content: "console.log('support');" },
+  {
+    name: "uploads/index.html",
+    content: "<html><body>Uploads index</body></html>",
+  },
+  { name: "uploads/pixel.png", content: PNG_BYTES },
+]);
+
+// Eleven root-level HTML members, all ambiguous — enough to cross the
+// filter's >8 threshold (docs/adr/0012).
+export const MANY_PAGES = buildZip(
+  Array.from({ length: 11 }, (_, i) => ({
+    name: `page-${String(i + 1).padStart(2, "0")}.html`,
+    content: `<html><body>Page ${i + 1}</body></html>`,
+  })),
 );
 
 // Carries every viewer case in one fixture: a sub page and an

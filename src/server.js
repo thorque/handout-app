@@ -2,7 +2,7 @@ import { loadConfig } from "./config.js";
 import { createPool } from "./db.js";
 import { runMigrations } from "./migrate.js";
 import { createOidc } from "./oidc.js";
-import { ensureDataDirs } from "./storage.js";
+import { ensureDataDirs, sweepAbandoned } from "./storage.js";
 import { buildServer } from "./app.js";
 
 async function main() {
@@ -16,6 +16,10 @@ async function main() {
   }
 
   await ensureDataDirs(config);
+  // An abandoned entry-choice upload (docs/adr/0012) must never accumulate
+  // across restarts either — a failing sweep must never stop the server from
+  // starting.
+  await sweepAbandoned(config).catch((err) => console.error(err));
   await runMigrations(config);
 
   const pool = createPool(config);

@@ -691,6 +691,190 @@ h1 {
   background: var(--paper-sunken);
 }
 
+/* Entry choice (Startseitenauswahl) and its summary box.
+   Structure and values from design-sources/Startseitenauswahl.dc.html (the
+   fieldset, filter and list) and design-sources/Handout-Prototyp--neues-handout.dc.html
+   (the summary box and the actions row, `neuEntry`). Per the plan's
+   substitution rule, only var(--text-sm), var(--weight-semibold),
+   var(--radius-1), var(--radius-2) and var(--control-height) stand in for
+   the design's literal values — everything else here is the literal px the
+   design file itself writes. */
+
+.entry-summary {
+  margin-top: 32px;
+  padding: 16px;
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entry-summary-file {
+  font-size: 15px;
+  font-weight: var(--weight-semibold);
+}
+
+.entry-summary-line {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.entry-summary-chosen {
+  margin-top: 4px;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+.entry-summary-path {
+  font-family: ui-monospace, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.entry-fieldset {
+  margin: 24px 0 0;
+  max-width: 560px;
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-2);
+}
+
+.entry-fieldset legend {
+  padding: 0 6px;
+  font-size: 16px;
+  font-weight: var(--weight-semibold);
+}
+
+.entry-hint {
+  margin: 0 0 16px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.entry-filter {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entry-filter label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.entry-filter input {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.entry-filter span {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.entry-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border-radius: var(--radius-1);
+  cursor: pointer;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 14px;
+}
+
+.entry-row:hover {
+  background: var(--paper-sunken);
+}
+
+.entry-row input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--accent-ink);
+}
+
+.entry-row span {
+  overflow-wrap: anywhere;
+}
+
+.entry-no-match {
+  margin: 0;
+  padding: 9px 8px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+/* .field-hint-error only ever carries its 13px font size together with
+   .field-hint (src/views/new-handout.js), so the re-check error reuses both
+   classes rather than .field-hint-error alone. This is not part of the
+   Startseitenauswahl component and sits outside the fieldset, so it needs
+   its own top margin. */
+.entry-error {
+  margin-top: 16px;
+}
+
+.entry-actions {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* .publish-button carries its own margin-top:32px; inside this row that
+   would stack a second gap on top of the row's own, so it is reset here. */
+.entry-publish-button {
+  margin-top: 0;
+}
+
+.entry-cancel-button {
+  height: var(--control-height);
+  padding: 0 20px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.entry-cancel-button:hover {
+  background: var(--paper-sunken);
+}
+
+/* Rejected screen (neuRejected, Handout-Prototyp--neues-handout.dc.html
+   lines 132-140) — its own row, not .drop-message: 15px, not 16px
+   semibold, and only the ✕ carries any weight. */
+.rejected-message {
+  margin-top: 32px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 15px;
+  color: var(--danger-ink);
+}
+
+.rejected-message-icon {
+  font-weight: var(--weight-semibold);
+  line-height: 1.5;
+}
+
 /* Viewer's password page (prototype "Passwortabfrage", lines 174-192) — no
    header, no wordmark: the design system says the header does not exist on
    the viewer side. */

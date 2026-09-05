@@ -6,10 +6,17 @@ import yauzl from "yauzl";
 
 export class TooLargeError extends Error {}
 export class UnsupportedError extends Error {}
-export class NoEntryError extends Error {}
+export class NoHtmlError extends Error {}
 export class UnsafeZipError extends Error {}
 
 const HANDOUT_META_FILE = ".handout";
+
+// See docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md — not an
+// environment variable: configuration in this project has no defaults
+// (CLAUDE.md), and this value is too small to be worth one more thing that
+// can be missing at start. The same reasoning as the address length, ADR
+// 0001.
+export const ABANDONED_AFTER_MS = 60 * 60 * 1000;
 
 function token() {
   return randomBytes(16).toString("hex");
@@ -21,6 +28,7 @@ export function paths(config) {
     content: path.join(root, "content"),
     staging: path.join(root, "staging"),
     incoming: path.join(root, "incoming"),
+    pending: path.join(root, "pending"),
   };
 }
 
@@ -134,11 +142,53 @@ function isArchiveNoise(name) {
   return false;
 }
 
+function isHtmlMember(name) {
+  return /\.(html|htm)$/i.test(name);
+}
+
+// Fixed locale, fixed comparator: the candidate order is shown to the
+// publisher and re-derived on the server-side re-check, so it has to come out
+// the same on every machine — a bare localeCompare() does not promise that.
+const CANDIDATE_COLLATOR = new Intl.Collator("en", { numeric: true });
+
+function compareCandidates(a, b) {
+  const dirA = topLevelDir(a) ? a.slice(0, a.lastIndexOf("/")) : "";
+  const dirB = topLevelDir(b) ? b.slice(0, b.lastIndexOf("/")) : "";
+  const byDir = CANDIDATE_COLLATOR.compare(dirA, dirB);
+  if (byDir !== 0) return byDir;
+  return CANDIDATE_COLLATOR.compare(basename(a), basename(b));
+}
+
+// The single filter both the entry-choice screen and the server-side
+// re-check call (docs/adr/0012) — archive noise removed by the same helper
+// resolveZipEntry itself uses, HTML members only, relative to `root`, sorted
+// root first then folders alphabetically. There is no second filter and no
+// stored copy of this list that could drift from it.
+export function entryCandidatesFrom(names, root) {
+  const prefix = root ? `${root}/` : "";
+  return names
+    .filter((name) => !isArchiveNoise(name))
+    .filter((name) => isHtmlMember(name))
+    .filter((name) => (root ? name.startsWith(prefix) : true))
+    .map((name) => (root ? name.slice(prefix.length) : name))
+    .sort(compareCandidates);
+}
+
+// Four-branch result, in the issue's own order — index.html at the root, a
+// single wrapper folder holding it, exactly one HTML member, several HTML
+// members (ambiguous), or none at all. See
+// docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md, which
+// amends ADR 0003's rules 2 and 4.
 export function resolveZipEntry(names) {
   const candidates = names.filter((name) => !isArchiveNoise(name));
+  const htmlMembers = candidates.filter((name) => isHtmlMember(name));
+
+  if (htmlMembers.length === 0) {
+    return { status: "none" };
+  }
 
   if (candidates.includes("index.html")) {
-    return { root: "", entry: "index.html" };
+    return { status: "resolved", root: "", entry: "index.html" };
   }
 
   const topDirs = new Set();
@@ -146,24 +196,40 @@ export function resolveZipEntry(names) {
     const dir = topLevelDir(name);
     if (dir) topDirs.add(dir);
   }
-  if (topDirs.size === 1) {
-    const [dir] = topDirs;
-    if (candidates.includes(`${dir}/index.html`)) {
-      return { root: dir, entry: "index.html" };
-    }
+  const singleTopDir = topDirs.size === 1 ? [...topDirs][0] : null;
+  // The clause a plain "one top-level directory holding index.html" rule
+  // does not have: a wrapper folder is only the whole story when every HTML
+  // member actually lives inside it. Without this, a multi-page export whose
+  // only *folder* happens to hold an index.html (while its real pages sit at
+  // the root) would silently resolve to that folder and hide the pages.
+  const allHtmlUnderSingleTopDir =
+    singleTopDir !== null &&
+    htmlMembers.every((name) => topLevelDir(name) === singleTopDir);
+
+  if (
+    allHtmlUnderSingleTopDir &&
+    candidates.includes(`${singleTopDir}/index.html`)
+  ) {
+    return { status: "resolved", root: singleTopDir, entry: "index.html" };
   }
 
-  const htmlMembers = candidates.filter((name) => /\.(html|htm)$/i.test(name));
   if (htmlMembers.length === 1) {
     const [member] = htmlMembers;
     const dir = topLevelDir(member);
     const entry = dir ? member.slice(dir.length + 1) : member;
-    return { root: dir || "", entry };
+    return { status: "resolved", root: dir || "", entry };
   }
 
-  throw new NoEntryError(
-    "There is no entry file in the zip. Expected is an index.html in the zip or in a single folder inside it.",
-  );
+  // A wrapper folder is still recognised as the root in the ambiguous case —
+  // the choice only ever fixes `entry`, never `root` — but only when it
+  // truly wraps every HTML member; otherwise a candidate outside it would be
+  // silently dropped from the list.
+  const root = allHtmlUnderSingleTopDir ? singleTopDir : "";
+  return {
+    status: "ambiguous",
+    root,
+    candidates: entryCandidatesFrom(names, root),
+  };
 }
 
 export function assertSafeMember(name) {
@@ -287,9 +353,11 @@ function sanitiseFilename(filename) {
 // when (and whether) to promote it to a live address.
 // materialise either returns a staging directory or leaves nothing behind —
 // the directory is this function's own, created as its first act, so a
-// throw from anything after that (an unsafe member, an ambiguous zip) is
+// throw from anything after that (an unsafe member, an entryless zip) is
 // this function's own to clean up before the caller ever sees the token to
-// clean it up with themselves.
+// clean it up with themselves. An *ambiguous* zip is not a throw: the
+// staging directory is returned with `entry: null` and survives — the
+// caller (the ambiguous branch in the publisher route) owns it from here.
 export async function materialise({ kind, sourcePath, filename, config }) {
   const dirs = paths(config);
   const stagingToken = token();
@@ -308,9 +376,12 @@ export async function materialise({ kind, sourcePath, filename, config }) {
       const resolved = resolveZipEntry(
         names.filter((name) => !name.endsWith("/")),
       );
+      if (resolved.status === "none") {
+        throw new NoHtmlError("The zip contains no HTML file");
+      }
       await extractZip(sourcePath, stagingDir);
       root = resolved.root;
-      entry = resolved.entry;
+      entry = resolved.status === "ambiguous" ? null : resolved.entry;
     } else {
       const safeName = sanitiseFilename(filename);
       await fsp.copyFile(sourcePath, path.join(stagingDir, safeName));
@@ -333,6 +404,66 @@ export async function materialise({ kind, sourcePath, filename, config }) {
     await fsp.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
     throw err;
   }
+}
+
+// readMeta's counterpart for a staging directory rather than a promoted
+// address — used to check whether an entry has actually been chosen before
+// promoting (a `null` entry reaching content/ would 500 on the first view).
+export async function readStagingMeta(config, stagingToken) {
+  const dirs = paths(config);
+  const raw = await fsp.readFile(
+    path.join(dirs.staging, stagingToken, HANDOUT_META_FILE),
+    "utf8",
+  );
+  return JSON.parse(raw);
+}
+
+// Rewrites the staging .handout with the chosen entry, once the publisher's
+// selection has been re-checked (a non-empty member of
+// stagingEntryCandidates, never taken on faith).
+export async function setStagingEntry(config, stagingToken, entry) {
+  if (typeof entry !== "string" || entry.trim() === "") {
+    throw new Error("setStagingEntry requires a non-empty entry");
+  }
+  const dirs = paths(config);
+  const metaPath = path.join(dirs.staging, stagingToken, HANDOUT_META_FILE);
+  const raw = await fsp.readFile(metaPath, "utf8");
+  const meta = JSON.parse(raw);
+  meta.entry = entry;
+  await fsp.writeFile(metaPath, JSON.stringify(meta), "utf8");
+}
+
+async function listStagingMembers(stagingDir) {
+  const results = [];
+  async function walk(dir, prefix) {
+    const entries = await fsp.readdir(dir, { withFileTypes: true });
+    for (const dirent of entries) {
+      const rel = prefix ? `${prefix}/${dirent.name}` : dirent.name;
+      if (dirent.isDirectory()) {
+        await walk(path.join(dir, dirent.name), rel);
+      } else {
+        results.push(rel);
+      }
+    }
+  }
+  await walk(stagingDir, "");
+  return results;
+}
+
+// The one function both the entry-choice screen's render and the
+// server-side re-check call (docs/adr/0012) — walks the staging directory
+// itself rather than trusting anything handed in, then runs it through the
+// same entryCandidatesFrom the initial resolution used.
+export async function stagingEntryCandidates(config, stagingToken) {
+  const dirs = paths(config);
+  const stagingDir = path.join(dirs.staging, stagingToken);
+  const raw = await fsp.readFile(
+    path.join(stagingDir, HANDOUT_META_FILE),
+    "utf8",
+  );
+  const meta = JSON.parse(raw);
+  const names = await listStagingMembers(stagingDir);
+  return entryCandidatesFrom(names, meta.root);
 }
 
 export async function promoteToContent(config, stagingToken, address) {
@@ -374,4 +505,68 @@ export async function readMeta(config, address) {
 
 export function contentDirFor(config, address) {
   return path.join(paths(config).content, address);
+}
+
+// The pending publish — title, protect flag, password, owner and filename —
+// for an ambiguous upload. Lives beside the staging directory rather than in
+// the database: the domain has two entities and no room for a third
+// (CLAUDE.md). See docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md.
+function pendingFile(config, stagingToken) {
+  return path.join(paths(config).pending, `${stagingToken}.json`);
+}
+
+export async function writePending(config, stagingToken, record) {
+  await fsp.writeFile(
+    pendingFile(config, stagingToken),
+    JSON.stringify(record),
+    "utf8",
+  );
+}
+
+export async function readPending(config, stagingToken) {
+  try {
+    const raw = await fsp.readFile(pendingFile(config, stagingToken), "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+export async function removePending(config, stagingToken) {
+  await fsp.rm(pendingFile(config, stagingToken), { force: true });
+}
+
+// Removes anything under pending/, staging/ or incoming/ older than
+// ABANDONED_AFTER_MS — a publisher who closes the tab on the entry-choice
+// screen leaves exactly a pending record plus a staging directory behind;
+// sweeping incoming/ too catches a stream that broke off mid-upload, at no
+// extra cost. Never throws: a failing sweep must never fail a publish or a
+// start, so a per-entry error is swallowed and the entry is simply left for
+// next time.
+export async function sweepAbandoned(config) {
+  const dirs = paths(config);
+  const cutoff = Date.now() - ABANDONED_AFTER_MS;
+  const removed = [];
+  for (const dir of [dirs.pending, dirs.staging, dirs.incoming]) {
+    let entries;
+    try {
+      entries = await fsp.readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      const entryPath = path.join(dir, name);
+      try {
+        const stat = await fsp.stat(entryPath);
+        if (stat.mtimeMs < cutoff) {
+          await fsp.rm(entryPath, { recursive: true, force: true });
+          removed.push(entryPath);
+        }
+      } catch {
+        // A single stale or already-removed entry must never stop the sweep.
+      }
+    }
+  }
+  return removed;
 }

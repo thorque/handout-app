@@ -23,7 +23,8 @@ address back, and the artifact is served byte-for-byte unchanged under it. A
 handout can carry a password, set while publishing it: the protection covers
 every request under its address, not only the entry page, and the password
 stays readable to the publisher (see
-`docs/adr/0009-password-stored-in-plain-text.md`).
+`docs/adr/0009-password-stored-in-plain-text.md`). A zip whose entry page is
+not derivable now asks for it instead of being refused.
 
 Not there yet: a dashboard listing what you published, updating a handout in
 place, deleting one, reissuing a password, the MCP endpoint for agents, a

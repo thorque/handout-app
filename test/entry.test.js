@@ -5,44 +5,128 @@ import os from "node:os";
 import path from "node:path";
 import {
   resolveZipEntry,
+  entryCandidatesFrom,
   assertSafeMember,
   materialise,
   paths,
-  NoEntryError,
+  NoHtmlError,
   UnsafeZipError,
 } from "../src/storage.js";
-import { TWO_FILE_SITE, TRAVERSAL, AMBIGUOUS } from "./helpers/zip.js";
+import {
+  TWO_FILE_SITE,
+  TRAVERSAL,
+  AMBIGUOUS,
+  ENTRYLESS,
+} from "./helpers/zip.js";
 
-const entryCases = [
-  [["index.html", "assets/app.css"], { root: "", entry: "index.html" }],
-  [
-    ["dist/index.html", "dist/assets/app.css"],
-    { root: "dist", entry: "index.html" },
-  ],
-  [["dist/index.html", "README.md"], { root: "dist", entry: "index.html" }],
-  [
-    ["docs/Prototyp.html", "docs/img/a.png"],
-    { root: "docs", entry: "Prototyp.html" },
-  ],
-];
+// One test per branch of the four-branch result
+// (docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md), in the
+// issue's own order.
 
-for (const [members, expected] of entryCases) {
-  test(`resolveZipEntry(${JSON.stringify(members)})`, () => {
-    assert.deepStrictEqual(resolveZipEntry(members), expected);
+test('resolveZipEntry: index.html at the root resolves, root ""', () => {
+  assert.deepStrictEqual(resolveZipEntry(["index.html", "assets/app.css"]), {
+    status: "resolved",
+    root: "",
+    entry: "index.html",
   });
-}
+});
 
-const noEntryCases = [
-  ["a/index.html", "b/index.html"],
-  ["styles.css", "img/a.png"],
-  ["a.html", "b.html"],
-];
-
-for (const members of noEntryCases) {
-  test(`resolveZipEntry(${JSON.stringify(members)}) throws NoEntryError`, () => {
-    assert.throws(() => resolveZipEntry(members), NoEntryError);
+test("resolveZipEntry: a single wrapper folder holding index.html resolves to it", () => {
+  assert.deepStrictEqual(
+    resolveZipEntry(["dist/index.html", "dist/assets/app.css"]),
+    { status: "resolved", root: "dist", entry: "index.html" },
+  );
+  // Extra files at the root are ignored as long as they are not HTML.
+  assert.deepStrictEqual(resolveZipEntry(["dist/index.html", "README.md"]), {
+    status: "resolved",
+    root: "dist",
+    entry: "index.html",
   });
-}
+});
+
+test("resolveZipEntry: exactly one HTML member in the whole archive resolves to it", () => {
+  assert.deepStrictEqual(
+    resolveZipEntry(["docs/Prototyp.html", "docs/img/a.png"]),
+    { status: "resolved", root: "docs", entry: "Prototyp.html" },
+  );
+});
+
+test("resolveZipEntry: two or more HTML members is ambiguous, not refused", () => {
+  assert.deepStrictEqual(resolveZipEntry(["a.html", "b.html"]), {
+    status: "ambiguous",
+    root: "",
+    candidates: ["a.html", "b.html"],
+  });
+  assert.deepStrictEqual(resolveZipEntry(["a/index.html", "b/index.html"]), {
+    status: "ambiguous",
+    root: "",
+    candidates: ["a/index.html", "b/index.html"],
+  });
+});
+
+test("resolveZipEntry: no HTML member at all is status none", () => {
+  assert.deepStrictEqual(resolveZipEntry(["styles.css", "img/a.png"]), {
+    status: "none",
+  });
+});
+
+// The tightened rule 2 (docs/adr/0012): a multi-page export whose only
+// *folder* happens to hold an index.html, while its real pages sit at the
+// root, must not resolve silently to that folder — it has to stay
+// ambiguous, with every real HTML member in the candidate list. Fails
+// against the code as it stood before this story, which answered
+// {root:"uploads",entry:"index.html"} and hid "a.dc.html" and "b.dc.html".
+test("resolveZipEntry: a folder holding index.html is not the root when HTML members sit outside it", () => {
+  assert.deepStrictEqual(
+    resolveZipEntry([
+      "a.dc.html",
+      "b.dc.html",
+      "support.js",
+      "uploads/index.html",
+      "uploads/pixel.png",
+    ]),
+    {
+      status: "ambiguous",
+      root: "",
+      candidates: ["a.dc.html", "b.dc.html", "uploads/index.html"],
+    },
+  );
+});
+
+// The candidate order — root first, then folders alphabetically, files
+// inside them alphabetically — reproduced exactly from the design system's
+// own "many" list (Handout-Designsystem--relevant-sections.dc.html, bottom
+// script block), shuffled on the way in. A plain .sort() does not reproduce
+// this order.
+test("entryCandidatesFrom: sorts exactly like the design system's own candidate order", () => {
+  const designOrder = [
+    "Handout Designsystem.dc.html",
+    "Handout Prototyp.dc.html",
+    "HandoutZeile.dc.html",
+    "seite.html",
+    "kapitel-01/seite.html",
+    "kapitel-02/anhang.html",
+    "kapitel-02/seite.html",
+    "kapitel-03/abbildungen.html",
+    "kapitel-03/seite.html",
+    "kapitel-04/seite.html",
+    "uploads/index.html",
+  ];
+  const shuffled = [
+    "kapitel-03/seite.html",
+    "uploads/index.html",
+    "HandoutZeile.dc.html",
+    "kapitel-01/seite.html",
+    "seite.html",
+    "kapitel-02/seite.html",
+    "Handout Designsystem.dc.html",
+    "kapitel-04/seite.html",
+    "kapitel-02/anhang.html",
+    "Handout Prototyp.dc.html",
+    "kapitel-03/abbildungen.html",
+  ];
+  assert.deepStrictEqual(entryCandidatesFrom(shuffled, ""), designOrder);
+});
 
 // Archive bookkeeping macOS (and Windows) add to a zip, which must never
 // count as artifact content when resolving the entry — the real defect this
@@ -62,17 +146,17 @@ const noiseCases = [
       "__MACOSX/MyDesign/._about.html",
       "__MACOSX/MyDesign/._contact.html",
     ],
-    { root: "MyDesign", entry: "index.html" },
+    { status: "resolved", root: "MyDesign", entry: "index.html" },
   ],
   [
     "noise is the only reason this wouldn't already resolve as exactly one real HTML file",
     ["docs/Prototyp.html", "docs/img/a.png", "__MACOSX/docs/._Prototyp.html"],
-    { root: "docs", entry: "Prototyp.html" },
+    { status: "resolved", root: "docs", entry: "Prototyp.html" },
   ],
   [
     "a top-level .DS_Store does not become a phantom sibling of the wrapper folder",
     [".DS_Store", "MyFolder/index.html", "MyFolder/app.css"],
-    { root: "MyFolder", entry: "index.html" },
+    { status: "resolved", root: "MyFolder", entry: "index.html" },
   ],
 ];
 
@@ -82,13 +166,14 @@ for (const [description, members, expected] of noiseCases) {
   });
 }
 
-test("resolveZipEntry still refuses a genuinely ambiguous zip (several real HTML files, no index.html) even with noise removed", () => {
-  // Offering a list of candidates to the publisher is a later story; this one
-  // does not start guessing among them.
-  assert.throws(
-    () =>
-      resolveZipEntry(["Site/a.html", "Site/b.html", "__MACOSX/Site/._a.html"]),
-    NoEntryError,
+// The wrapper folder still wins as `root` in the ambiguous branch — the
+// choice only ever sets `entry`, never `root` — with noise removed from the
+// candidate list the same way. The existing noise test, inverted: this zip
+// has no index.html, so it is ambiguous rather than refused.
+test("resolveZipEntry: the wrapper folder still wins as root when the zip is ambiguous", () => {
+  assert.deepStrictEqual(
+    resolveZipEntry(["Site/a.html", "Site/b.html", "__MACOSX/Site/._a.html"]),
+    { status: "ambiguous", root: "Site", candidates: ["a.html", "b.html"] },
   );
 });
 
@@ -107,7 +192,7 @@ test("assertSafeMember accepts ordinary relative paths", () => {
 
 // materialise either returns a staging directory or leaves nothing behind.
 // staging/<token> is its own directory, created as its first act, before
-// anything that can throw — an unsafe member, an ambiguous zip — so a throw
+// anything that can throw — an unsafe member, an entryless zip — so a throw
 // from either of those must not leave that empty directory on disk with no
 // token ever handed back to remove it by.
 async function withTempConfig(fn) {
@@ -136,9 +221,9 @@ async function stagingEntries(config) {
   }
 }
 
-test("materialise leaves the staging root empty after an ambiguous zip (NoEntryError), and the error is still the original", async () => {
+test("materialise leaves the staging root empty after an entryless zip (NoHtmlError), and the error is still the original", async () => {
   await withTempConfig(async (config) => {
-    const sourcePath = await writeZipFixture(config, AMBIGUOUS);
+    const sourcePath = await writeZipFixture(config, ENTRYLESS);
     await assert.rejects(
       () =>
         materialise({
@@ -147,7 +232,7 @@ test("materialise leaves the staging root empty after an ambiguous zip (NoEntryE
           filename: "upload.zip",
           config,
         }),
-      NoEntryError,
+      NoHtmlError,
     );
     assert.deepStrictEqual(await stagingEntries(config), []);
   });
@@ -167,6 +252,38 @@ test("materialise leaves the staging root empty after an unsafe zip (UnsafeZipEr
       UnsafeZipError,
     );
     assert.deepStrictEqual(await stagingEntries(config), []);
+  });
+});
+
+test("materialise keeps the staging directory after an ambiguous zip, extracted, with entry: null", async () => {
+  await withTempConfig(async (config) => {
+    const sourcePath = await writeZipFixture(config, AMBIGUOUS);
+    const result = await materialise({
+      kind: "zip",
+      sourcePath,
+      filename: "upload.zip",
+      config,
+    });
+
+    assert.strictEqual(result.root, "");
+    assert.strictEqual(result.entry, null);
+    assert.deepStrictEqual(await stagingEntries(config), [result.token]);
+
+    const stagingDir = path.join(paths(config).staging, result.token);
+    const files = await fs.readdir(stagingDir);
+    assert.ok(files.includes(".handout"));
+    assert.ok(files.includes("a.html"));
+    assert.ok(files.includes("b.html"));
+
+    const meta = JSON.parse(
+      await fs.readFile(path.join(stagingDir, ".handout"), "utf8"),
+    );
+    assert.deepStrictEqual(meta, {
+      root: "",
+      entry: null,
+      kind: "zip",
+      filename: "upload.zip",
+    });
   });
 });
 

@@ -9,6 +9,7 @@
     "start": "node --env-file=.env src/server.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "lint": "eslint .",
+    "check:refs": "sh scripts/no-internal-references.sh",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

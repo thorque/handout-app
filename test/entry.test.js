@@ -83,8 +83,8 @@ for (const [description, members, expected] of noiseCases) {
 }
 
 test("resolveZipEntry still refuses a genuinely ambiguous zip (several real HTML files, no index.html) even with noise removed", () => {
-  // HANDOUT-15 is where a list of candidates gets offered to the publisher;
-  // this story does not start guessing among them.
+  // Offering a list of candidates to the publisher is a later story; this one
+  // does not start guessing among them.
   assert.throws(
     () =>
       resolveZipEntry(["Site/a.html", "Site/b.html", "__MACOSX/Site/._a.html"]),

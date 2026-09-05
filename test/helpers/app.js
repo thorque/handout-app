@@ -92,7 +92,10 @@ export async function buildTestServer(overrides = {}) {
   const pool = createPool(config);
   const oidcConfig = await createOidc(config);
 
-  const fastify = buildServer(config, { pool, oidcConfig });
+  const buildOptions = { pool, oidcConfig };
+  if (overrides.throttle) buildOptions.throttle = overrides.throttle;
+
+  const fastify = buildServer(config, buildOptions);
   await fastify.ready();
   await fastify.listen({ host: "127.0.0.1", port: 0 });
   const address = fastify.server.address();
@@ -104,6 +107,7 @@ export async function buildTestServer(overrides = {}) {
     pool,
     stub,
     baseUrl,
+    throttle: fastify.throttle,
     signSession(claims) {
       return `handout_session=${signSessionValue(config, claims)}`;
     },

@@ -108,3 +108,24 @@ export const AMBIGUOUS = buildZip([
   { name: "a.html", content: "<html><body>a</body></html>" },
   { name: "b.html", content: "<html><body>b</body></html>" },
 ]);
+
+// A real, minimal 1x1 PNG (not just bytes that merely look like one) — the
+// static route's content-type check follows every reference out of a page,
+// including an <img>, so the fixture has to decode.
+const PNG_BYTES = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+  "base64",
+);
+
+// Carries every viewer case in one fixture: a sub page and an
+// image (both must answer the password gate), plus two decoy paths whose
+// names collide with the reserved prefix elsewhere in the app
+// (handout.css, /static/*) to prove the reservation is exactly /.handout/
+// and nothing wider.
+export const PROTECTED_SITE = buildZip([
+  { name: "index.html", content: "<html><body>Protected entry</body></html>" },
+  { name: "sub/page.html", content: "<html><body>Sub page</body></html>" },
+  { name: "assets/pixel.png", content: PNG_BYTES },
+  { name: "handout.css", content: "body { color: teal; }" },
+  { name: "static/app.css", content: "body { color: olive; }" },
+]);

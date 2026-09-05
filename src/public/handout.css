@@ -1,16 +1,20 @@
+/* Relative to this stylesheet's own URL, not absolute to /static — the same
+   file is served both at /static/handout.css and at
+   /.handout/assets/handout.css (docs/adr/0010), and a relative url()
+   resolves correctly at either location. */
 @font-face {
   font-family: "Source Sans 3";
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("/static/fonts/source-sans-3-latin-400.woff2") format("woff2");
+  src: url("fonts/source-sans-3-latin-400.woff2") format("woff2");
 }
 @font-face {
   font-family: "Source Sans 3";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("/static/fonts/source-sans-3-latin-600.woff2") format("woff2");
+  src: url("fonts/source-sans-3-latin-600.woff2") format("woff2");
 }
 
 * {
@@ -42,6 +46,10 @@ body {
 
 a {
   color: var(--accent-ink);
+}
+
+a:hover {
+  color: var(--accent-hover);
 }
 
 button,
@@ -416,8 +424,12 @@ h1 {
 
 /* This is genuinely the hint slot the design system shows an error example
    in, so it keeps that slot's 13px — unlike .drop-message, which is the
-   primary feedback on a large surface and needs the bigger size instead. */
+   primary feedback on a large surface and needs the bigger size instead.
+   The icon-plus-sentence layout is the same shape as .drop-message,
+   though, so it takes the same display:flex;gap:6px. */
 .field-hint-error {
+  display: flex;
+  gap: 6px;
   color: var(--danger-ink);
 }
 
@@ -533,6 +545,15 @@ h1 {
   white-space: nowrap;
 }
 
+/* The address as a link, from the component's isLink branch: the same
+   monospace value, underlined with a 2px offset. The colour comes from the
+   page's own `a` rule (--accent-ink) - both design sources set it at page
+   level, the component's isolated preview has none of its own. */
+.copy-field-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .copy-field-button {
   height: var(--control-height);
   padding: 0 16px;
@@ -548,6 +569,25 @@ h1 {
 
 .copy-field-button:hover {
   background: var(--paper-sunken);
+}
+
+/* The live label and the reserved ones all sit in the same single grid cell,
+   so the cell is as wide as the widest of them and stays that width when the
+   label is swapped for the receipt. `min-width: 112px` from the component
+   still applies underneath; this only ever makes the button wider. */
+.copy-field-button-stack {
+  display: grid;
+}
+
+.copy-field-button-stack > * {
+  grid-area: 1 / 1;
+}
+
+/* Hidden from sight and, being `visibility: hidden`, from the accessibility
+   tree as well — the `aria-hidden` in the markup says the same thing twice on
+   purpose, because this text must never reach the button's live region. */
+.copy-field-button-reserve {
+  visibility: hidden;
 }
 
 .another-button {
@@ -566,4 +606,168 @@ h1 {
 
 .another-button:hover {
   background: var(--paper-sunken);
+}
+
+/* Protect option (prototype "Neues Handout", lines 78-93) */
+
+.protect-block {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+  max-width: 520px;
+}
+
+.protect-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.protect-checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  accent-color: var(--accent-ink);
+}
+
+.protect-label-text {
+  font-weight: var(--weight-semibold);
+}
+
+.protect-hint {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--ink-faint);
+}
+
+/* 30px = the checkbox's 18px plus the label's 12px gap, so the block lines
+   up under the label text, not under the checkbox. */
+.password-block {
+  margin: 16px 0 0 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.password-label {
+  font-weight: var(--weight-semibold);
+}
+
+.password-row {
+  display: flex;
+  gap: 8px;
+}
+
+.password-input {
+  flex: 1;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  color: var(--ink);
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.password-input.field-input-error {
+  border: 1px solid var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+  border-radius: 2px;
+}
+
+.password-suggest-button {
+  height: var(--control-height);
+  padding: 0 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.password-suggest-button:hover {
+  background: var(--paper-sunken);
+}
+
+/* Viewer's password page (prototype "Passwortabfrage", lines 174-192) — no
+   header, no wordmark: the design system says the header does not exist on
+   the viewer side. */
+
+.viewer-page {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-5) var(--space-9);
+}
+
+.viewer-heading {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+
+.viewer-lead {
+  margin: 12px 0 0;
+  color: var(--ink-muted);
+}
+
+.viewer-field {
+  margin-top: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.viewer-field label {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-md);
+}
+
+.viewer-input {
+  height: var(--control-height-lg);
+  padding: 0 var(--space-4);
+  font-size: var(--text-md);
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  color: var(--ink);
+}
+
+/* Same field-error shape as .field-input-error — border and box-shadow, not
+   colour alone (criterion 5). */
+.viewer-input.error {
+  border: 1px solid var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+/* The screen's own layout size (16px), not the field-hint slot's 13px —
+   this is the message the *viewer* sees, distinct from the publisher's
+   password-field hint above. */
+.viewer-message {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: var(--text-md);
+  color: var(--danger-ink);
+}
+
+.viewer-submit {
+  margin-top: var(--space-4);
+  height: var(--control-height-lg);
+  padding: 0 var(--space-5);
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-1);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.viewer-submit:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }

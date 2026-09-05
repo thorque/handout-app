@@ -58,13 +58,16 @@ reopened; it is superseded by a new ADR that says so.
 
 ## Running things
 
-- Servers start through `monoceros-ctl start <app>` and are declared in
-  `.monoceros/launch.json`. Never a bare shell start: a foreground start dies
-  with the session, a backgrounded one holds stdout open until the tool call
-  times out.
-- A server listens on `0.0.0.0`, never `127.0.0.1`.
-- Acceptance for an issue: its acceptance criteria are met, tests and build
-  green.
+- `npm start` runs the application; migrations run on start. `npm test` needs a
+  PostgreSQL it may create and drop databases on.
+- A server listens on `0.0.0.0`, never `127.0.0.1`: it has to be reachable from
+  outside its own container, and the addresses Handout hands out are derived
+  from the request, so a loopback binding makes every one of them wrong.
+- Acceptance for a piece of work: its acceptance criteria are met, tests and
+  build green.
+- How a server is started and kept alive is a property of the environment you
+  are in, not of this project. Whatever briefing that environment gives you
+  decides it; this file does not.
 
 
 ## Interface

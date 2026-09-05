@@ -60,13 +60,40 @@ export const strings = {
   "viewer.passwordLabel": "Password",
   "viewer.submit": "Continue",
 
+  // entry-choice phase (the zip holds several HTML files, none of them
+  // index.html) — docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md
+  "entry.lead": "The zip has arrived. One detail is still missing.",
+  "entry.summaryProtected": "with a password",
+  "entry.summaryOpen": "no password",
+  "entry.chosen": "Entry page:",
+  "entry.legend": "Which file is the entry page?",
+  "entry.hint":
+    "The zip contains several HTML files and no index.html. Paths are relative to the root of the zip.",
+  "entry.filterLabel": "Filter by path",
+  "entry.filterPlaceholder": "chapter",
+  "entry.filterCountAll": "{total} HTML files",
+  "entry.filterCountSome": "{shown} of {total} HTML files",
+  "entry.filterCountSomePinned":
+    "{shown} of {total} HTML files, plus the selected one",
+  "entry.noMatch": "No path contains this text.",
+  "entry.cancel": "Cancel",
+  "publish.noEntry": "Publish (no entry page)",
+
+  // rejected phase — a zip with no HTML file at all
+  "rejected.lead": "The zip has arrived but cannot be published.",
+  "rejected.chooseAnother": "Choose a different file",
+
   // refusals
   "error.tooLargeClient":
     "The file is {size}. Handout does not take more than {limit}.",
   "error.tooLarge": "Handout does not take more than {limit}.",
   "error.unsupported": "Zip, HTML or PDF. Handout does not take other forms.",
-  "error.noEntry":
-    "There is no entry file in the zip. Expected is an index.html in the zip or in a single folder inside it.",
+  "error.noHtml":
+    "The zip contains no HTML file. Expected is a zip with at least one HTML file, a single HTML file, or a PDF.",
+  "error.entryNotChosen": "Choose the entry page.",
+  "error.entryNotInZip": "That file is not one of the zip's HTML files.",
+  "error.uploadGone":
+    "The upload is no longer available. Upload the file again.",
   "error.unsafeZip": "The zip contains paths outside the archive.",
   "error.noTitle": "A handout needs a title.",
   "error.passwordMissing":

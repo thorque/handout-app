@@ -465,11 +465,88 @@
     updatePublishButton();
   }
 
+  // The entry-choice screen (docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md).
+  // Returns immediately when the screen is not the one rendered, so every
+  // other page stays untouched.
+  function initEntryChoice() {
+    var publishButton = document.querySelector("[data-entry-publish]");
+    if (!publishButton) return;
+
+    var radios = document.querySelectorAll('input[name="entry"]');
+
+    function updatePublishButton() {
+      var anyChecked = false;
+      radios.forEach(function (radio) {
+        if (radio.checked) anyChecked = true;
+      });
+      publishButton.disabled = !anyChecked;
+      publishButton.textContent = anyChecked
+        ? publishButton.getAttribute("data-label-ready")
+        : publishButton.getAttribute("data-label-no-entry");
+    }
+
+    radios.forEach(function (radio) {
+      radio.addEventListener("change", updatePublishButton);
+    });
+    updatePublishButton();
+
+    var filterBlock = document.querySelector("[data-entry-filter]");
+    if (!filterBlock) return;
+    filterBlock.hidden = false;
+
+    var filterInput = filterBlock.querySelector("[data-entry-filter-input]");
+    var countSpan = filterBlock.querySelector("[data-entry-filter-count]");
+    var noMatch = document.querySelector("[data-entry-no-match]");
+    var total = radios.length;
+
+    function updateFilter() {
+      var needle = filterInput.value.trim().toLowerCase();
+      var shown = 0;
+      var pinned = false;
+
+      radios.forEach(function (radio) {
+        var row = radio.closest(".entry-row");
+        var matches =
+          !needle || row.textContent.toLowerCase().indexOf(needle) !== -1;
+        // The selected row is never hidden and never moved (docs/adr/0012,
+        // D8): the design system's own rule is "filtering never discards the
+        // selection", so a checked radio stays put and stays visible even
+        // when the needle would otherwise exclude it — the component's own
+        // implementation (which pins it back to the top of the list) is not
+        // followed here, only its stated rule.
+        if (radio.checked && !matches) {
+          pinned = true;
+          row.hidden = false;
+          return;
+        }
+        row.hidden = !matches;
+        if (matches) shown += 1;
+      });
+
+      if (countSpan) {
+        var template = pinned
+          ? countSpan.getAttribute("data-template-some-pinned")
+          : shown === total
+            ? countSpan.getAttribute("data-template-all")
+            : countSpan.getAttribute("data-template-some");
+        countSpan.textContent = substitute(template, {
+          shown: shown,
+          total: total,
+        });
+      }
+
+      if (noMatch) noMatch.hidden = shown !== 0 || pinned;
+    }
+
+    filterInput.addEventListener("input", updateFilter);
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initTheme();
     initProfilePanel();
     initCopy();
     initProtectToggle();
     initDropArea();
+    initEntryChoice();
   });
 })();

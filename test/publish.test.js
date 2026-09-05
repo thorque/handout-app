@@ -473,7 +473,11 @@ test("422 for an empty title, asked without Accept: application/json, marks the 
   }
 });
 
-test("422 for the entryless zip", async () => {
+// Per docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md (D9): a
+// zip with no HTML file gets its own screen, not a 4xx — the refusal is
+// carried by /handouts/rejected and its sentence, on both the JSON and the
+// no-JS path.
+test("a zip with no HTML file answers a location to /handouts/rejected, JSON path", async () => {
   const t2 = await buildTestServer();
   try {
     const cookie = t2.signSession({ sub: "u1" });
@@ -496,50 +500,16 @@ test("422 for the entryless zip", async () => {
       },
       body,
     });
-    assert.strictEqual(res.status, 422);
+    assert.strictEqual(res.status, 200);
     assert.match(res.headers.get("content-type"), /application\/json/);
     const json = await res.json();
-    assert.strictEqual(json.error, strings["error.noEntry"]);
+    assert.strictEqual(json.location, "/handouts/rejected");
   } finally {
     await t2.close();
   }
 });
 
-test("422 for the entryless zip, asked as JSON, answers application/json — not HTML", async () => {
-  const t2 = await buildTestServer();
-  try {
-    const cookie = t2.signSession({ sub: "u1" });
-    const { body, contentType } = buildMultipart([
-      {
-        type: "file",
-        name: "file",
-        filename: "entryless.zip",
-        content: ENTRYLESS,
-        contentType: "application/zip",
-      },
-      { name: "title", value: "Entryless" },
-    ]);
-    const res = await fetch(`${t2.baseUrl}/handouts`, {
-      method: "POST",
-      headers: {
-        cookie,
-        accept: "application/json",
-        "content-type": contentType,
-      },
-      body,
-    });
-    assert.strictEqual(res.status, 422);
-    const responseContentType = res.headers.get("content-type");
-    assert.match(responseContentType, /application\/json/);
-    assert.doesNotMatch(responseContentType, /text\/html/);
-    const json = await res.json();
-    assert.strictEqual(json.error, strings["error.noEntry"]);
-  } finally {
-    await t2.close();
-  }
-});
-
-test("422 for the same entryless zip, asked without Accept: application/json, answers HTML with the same message", async () => {
+test("a zip with no HTML file answers a 303 to /handouts/rejected, no-JS path, and the rejected screen carries the sentence", async () => {
   const t2 = await buildTestServer();
   try {
     const cookie = t2.signSession({ sub: "u1" });
@@ -557,11 +527,17 @@ test("422 for the same entryless zip, asked without Accept: application/json, an
       method: "POST",
       headers: { cookie, "content-type": contentType },
       body,
+      redirect: "manual",
     });
-    assert.strictEqual(res.status, 422);
-    assert.match(res.headers.get("content-type"), /text\/html/);
-    const html = await res.text();
-    assert.ok(html.includes(strings["error.noEntry"]));
+    assert.strictEqual(res.status, 303);
+    assert.strictEqual(res.headers.get("location"), "/handouts/rejected");
+
+    const rejectedRes = await fetch(`${t2.baseUrl}/handouts/rejected`, {
+      headers: { cookie },
+    });
+    assert.strictEqual(rejectedRes.status, 200);
+    const html = await rejectedRes.text();
+    assert.ok(html.includes(strings["error.noHtml"]));
   } finally {
     await t2.close();
   }
@@ -617,6 +593,9 @@ function titleInputHasErrorClass(html) {
   );
 }
 
+// A zip with no HTML file no longer frames the drop area — it gets its own
+// screen (docs/adr/0012), covered above. The .docx case still covers the
+// drop-area framing this table exists for.
 const FILE_RELATED_REFUSALS = [
   {
     name: "unsupported type (.docx)",
@@ -632,20 +611,6 @@ const FILE_RELATED_REFUSALS = [
       { name: "title", value: "A document" },
     ],
     status: 415,
-  },
-  {
-    name: "no entry file (entryless zip)",
-    fields: [
-      {
-        type: "file",
-        name: "file",
-        filename: "entryless.zip",
-        content: ENTRYLESS,
-        contentType: "application/zip",
-      },
-      { name: "title", value: "Entryless" },
-    ],
-    status: 422,
   },
 ];
 

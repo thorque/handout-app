@@ -456,3 +456,53 @@ test("unauthenticated GET / redirects to /auth/login", async () => {
     await t.close();
   }
 });
+
+// The stylesheet's own url() references have to resolve relative to its own
+// URL (HANDOUT-8, docs/adr/0010) — /static/handout.css is one of the two
+// origins it is served from, the other being /.handout/assets/handout.css.
+test("/static/handout.css's own url() references resolve and serve", async () => {
+  const t = await buildTestServer();
+  try {
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
+    const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
+    assert.strictEqual(cssRes.status, 200);
+    const css = await cssRes.text();
+
+    const refs = new Set();
+    const pattern = /url\(["']?([^"')]+)["']?\)/g;
+    let match;
+    while ((match = pattern.exec(css))) refs.add(match[1]);
+    assert.ok(refs.size > 0, "expected at least one url() reference");
+
+    for (const ref of refs) {
+      const resolved = new URL(ref, `${t.baseUrl}/static/handout.css`);
+      const assetRes = await fetch(resolved, { headers: { cookie } });
+      assert.strictEqual(assetRes.status, 200, `expected 200 for ${ref}`);
+    }
+  } finally {
+    await t.close();
+  }
+});
+
+// A blunt instrument, deliberately: the copy behaviour has no DOM in this
+// suite, and a single querySelector() version silently kills the second
+// (password) copy handle on the result page — exactly the defect this
+// story would otherwise ship. The eye-check in "Manual verification"
+// (HANDOUT-8's plan) is the other half.
+test("handout.js wires every copy button, not only the first", async () => {
+  const t = await buildTestServer();
+  try {
+    const res = await fetch(`${t.baseUrl}/static/handout.js`);
+    assert.strictEqual(res.status, 200);
+    const js = await res.text();
+    assert.ok(js.includes('querySelectorAll("[data-copy-button]")'));
+  } finally {
+    await t.close();
+  }
+});

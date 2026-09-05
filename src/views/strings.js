@@ -26,6 +26,14 @@ export const strings = {
   "publish.noFile": "Publish (no file)",
   "publish.noTitle": "Publish (no title)",
 
+  // form phase — the protect option
+  "form.protectLabel": "Protect with a password",
+  "form.protectHint": "Applies to the whole artifact, not only its first page.",
+  "form.passwordLabel": "Password",
+  "form.passwordSuggest": "Suggest",
+  "form.passwordHint": "Handout keeps it, so you do not have to write it down.",
+  "publish.noPassword": "Publish (no password)",
+
   // No "uploading phase" strings: no heading (the page's own "New handout"
   // above stays visible) and no "page stays usable" sentence either — with
   // the title field and the publish button hidden during the transfer,
@@ -33,11 +41,24 @@ export const strings = {
 
   // result phase
   "done.lead": "The address is permanent. Whoever has it sees the artifact.",
+  "done.leadProtected":
+    "The address is permanent. Whoever has it and the password sees the artifact.",
   "done.addressLabel": "Address",
   "done.copy": "Copy address",
   "done.copied": "→ Address copied", // a receipt naming what's on the clipboard, not a bare success word
   "done.copyFailed": "Copying failed. Select the address and copy it by hand.",
+  "done.passwordLabel": "Password",
+  "done.copyPassword": "Copy password",
+  "done.passwordCopied": "→ Password copied",
+  "done.passwordCopyFailed":
+    "Copying failed. Select the password and copy it by hand.",
   "done.another": "Another handout",
+
+  // viewer's password page
+  "viewer.heading": "Enter password",
+  "viewer.lead": "This content is protected with a password.",
+  "viewer.passwordLabel": "Password",
+  "viewer.submit": "Continue",
 
   // refusals
   "error.tooLargeClient":
@@ -48,6 +69,10 @@ export const strings = {
     "There is no entry file in the zip. Expected is an index.html in the zip or in a single folder inside it.",
   "error.unsafeZip": "The zip contains paths outside the archive.",
   "error.noTitle": "A handout needs a title.",
+  "error.passwordMissing":
+    "The password is missing. Without one the handout is open to anyone who has the address — then turn the option off.",
+  "error.passwordTooLong": "A password can be at most {limit} characters.",
+  "error.passwordWrong": "The password is not right.",
   "error.unknownAddress": "This address does not exist.",
   "error.signInFailed": "The sign-in did not complete. Start it again.",
   "error.icon": "✕", // aria-hidden next to a refusal; the message already says it in words

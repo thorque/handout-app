@@ -19,10 +19,14 @@ place. A zip, a single HTML file or a PDF goes in; a link comes out.
 ## Status
 
 Publishing works: sign in, drop a zip, an HTML file or a PDF, get a durable
-address back, and the artifact is served byte-for-byte unchanged under it.
+address back, and the artifact is served byte-for-byte unchanged under it. A
+handout can carry a password, set while publishing it: the protection covers
+every request under its address, not only the entry page, and the password
+stays readable to the publisher (see
+`docs/adr/0009-password-stored-in-plain-text.md`).
 
-Not there yet: a password on a handout, a dashboard listing what you published,
-updating a handout in place, deleting one, the MCP endpoint for agents, a
+Not there yet: a dashboard listing what you published, updating a handout in
+place, deleting one, reissuing a password, the MCP endpoint for agents, a
 published compose file, and a mode for operators who cannot get a wildcard DNS
 entry.
 

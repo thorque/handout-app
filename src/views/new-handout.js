@@ -1,5 +1,6 @@
 import { esc, page } from "./layout.js";
 import { strings, t } from "./strings.js";
+import { suggestPassword } from "../password.js";
 
 export function formatBytes(bytes) {
   if (bytes >= 1024 * 1024) {
@@ -15,9 +16,13 @@ export function renderNewHandout({
   config,
   fileError,
   titleError,
+  passwordError,
   title,
+  protect = true,
+  password,
 }) {
   const limit = formatBytes(config.maxUploadBytes);
+  const passwordValue = password || suggestPassword();
 
   const body = `
 <h1>${esc(strings["form.heading"])}</h1>
@@ -100,6 +105,35 @@ ${
     <div class="field-hint${titleError ? " field-hint-error" : ""}">${esc(titleError || strings["title.hint"])}</div>
   </div>
 
+  <div class="protect-block">
+    <label for="protect" class="protect-label">
+      <input type="checkbox" id="protect" name="protect" class="protect-checkbox" ${protect ? "checked" : ""}>
+      <span>
+        <span class="protect-label-text">${esc(strings["form.protectLabel"])}</span>
+        <span class="protect-hint">${esc(strings["form.protectHint"])}</span>
+      </span>
+    </label>
+    <div class="password-block" data-password-block${protect ? "" : " hidden"}>
+      <label for="password" class="password-label">${esc(strings["form.passwordLabel"])}</label>
+      <div class="password-row">
+        <input
+          type="text"
+          id="password"
+          name="password"
+          maxlength="200"
+          value="${esc(passwordValue)}"
+          class="password-input${passwordError ? " field-input-error" : ""}"
+        >
+        <button type="button" class="password-suggest-button" data-suggest-password>${esc(strings["form.passwordSuggest"])}</button>
+      </div>
+      <div class="field-hint${passwordError ? " field-hint-error" : ""}">${
+        passwordError
+          ? `<span aria-hidden="true" class="drop-message-icon">${esc(strings["error.icon"])}</span>${esc(passwordError)}`
+          : esc(strings["form.passwordHint"])
+      }</div>
+    </div>
+  </div>
+
   <button
     type="submit"
     class="publish-button"
@@ -108,6 +142,7 @@ ${
     data-label-ready="${esc(strings["publish.ready"])}"
     data-label-no-file="${esc(strings["publish.noFile"])}"
     data-label-no-title="${esc(strings["publish.noTitle"])}"
+    data-label-no-password="${esc(strings["publish.noPassword"])}"
   >${esc(strings["publish.noFile"])}</button>
 </form>`;
 

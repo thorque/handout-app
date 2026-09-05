@@ -18,6 +18,7 @@ import { renderNewHandout, formatBytes } from "../views/new-handout.js";
 import { renderDone } from "../views/done.js";
 import { renderError } from "../views/error.js";
 import { strings, t } from "../views/strings.js";
+import { PASSWORD_MAX_LENGTH, suggestPassword } from "../password.js";
 
 async function readFirstBytes(filePath, length) {
   const handle = await fsp.open(filePath, "r");
@@ -34,18 +35,18 @@ function acceptsJson(request) {
   return (request.headers.accept || "").includes("application/json");
 }
 
-// isTitleError distinguishes the one refusal that is about the title from
-// every other refusal, which is about the file: that pairing is what keeps
-// the drop area's error frame and the title field's error frame from ever
-// firing for the same cause, or both firing at once.
+// `field` distinguishes which refusal frame lights up — "file", "title" or
+// "password" — so the drop area's, the title field's and the password
+// field's error frames never fire for the same cause, or more than one at
+// once. `protect` and `password` are passed back through so a re-render
+// keeps what the publisher typed.
 function sendRefusal(
   reply,
   request,
   config,
   status,
   message,
-  title,
-  isTitleError = false,
+  { title, protect, password, field = "file" } = {},
 ) {
   if (acceptsJson(request)) {
     return reply.code(status).send({ error: message });
@@ -58,8 +59,11 @@ function sendRefusal(
         user: request.user,
         config,
         title,
-        fileError: isTitleError ? undefined : message,
-        titleError: isTitleError ? message : undefined,
+        protect,
+        password,
+        fileError: field === "file" ? message : undefined,
+        titleError: field === "title" ? message : undefined,
+        passwordError: field === "password" ? message : undefined,
       }),
     );
 }
@@ -90,6 +94,8 @@ export default async function publisherRoutes(fastify) {
 
       let uploaded = null;
       let title = "";
+      let protect = false;
+      let password = "";
 
       try {
         const parts = request.parts({
@@ -112,11 +118,17 @@ export default async function publisherRoutes(fastify) {
                 t("error.tooLarge", {
                   limit: formatBytes(config.maxUploadBytes),
                 }),
-                title,
+                { title, protect, password },
               );
             }
           } else if (part.fieldname === "title") {
             title = String(part.value || "");
+          } else if (part.fieldname === "protect") {
+            // An unchecked checkbox sends nothing at all, so *presence* of
+            // this field is the signal — its value is never compared.
+            protect = true;
+          } else if (part.fieldname === "password") {
+            password = String(part.value || "");
           }
         }
       } catch (err) {
@@ -128,7 +140,7 @@ export default async function publisherRoutes(fastify) {
             config,
             413,
             t("error.tooLarge", { limit: formatBytes(config.maxUploadBytes) }),
-            title,
+            { title, protect, password },
           );
         }
         throw err;
@@ -141,7 +153,7 @@ export default async function publisherRoutes(fastify) {
           config,
           415,
           strings["error.unsupported"],
-          title,
+          { title, protect, password },
         );
       }
 
@@ -158,7 +170,7 @@ export default async function publisherRoutes(fastify) {
             config,
             415,
             strings["error.unsupported"],
-            title,
+            { title, protect, password },
           );
         }
         throw err;
@@ -172,8 +184,38 @@ export default async function publisherRoutes(fastify) {
           config,
           422,
           strings["error.noTitle"],
-          title,
-          true,
+          {
+            title,
+            protect,
+            password,
+            field: "title",
+          },
+        );
+      }
+
+      // protect absent -> the password field is ignored entirely and the
+      // handout is unprotected, which is what keeps every existing
+      // publish test (sending neither field) publishing unprotected.
+      if (protect && password.trim() === "") {
+        await fsp.rm(uploaded.path, { force: true });
+        return sendRefusal(
+          reply,
+          request,
+          config,
+          422,
+          strings["error.passwordMissing"],
+          { title, protect, password, field: "password" },
+        );
+      }
+      if (protect && password.length > PASSWORD_MAX_LENGTH) {
+        await fsp.rm(uploaded.path, { force: true });
+        return sendRefusal(
+          reply,
+          request,
+          config,
+          422,
+          t("error.passwordTooLong", { limit: PASSWORD_MAX_LENGTH }),
+          { title, protect, password, field: "password" },
         );
       }
 
@@ -194,7 +236,7 @@ export default async function publisherRoutes(fastify) {
             config,
             422,
             strings["error.noEntry"],
-            title,
+            { title, protect, password },
           );
         }
         if (err instanceof UnsafeZipError) {
@@ -204,7 +246,7 @@ export default async function publisherRoutes(fastify) {
             config,
             422,
             strings["error.unsafeZip"],
-            title,
+            { title, protect, password },
           );
         }
         throw err;
@@ -231,8 +273,8 @@ export default async function publisherRoutes(fastify) {
       try {
         await client.query("begin");
         const result = await client.query(
-          "insert into handout (title, owner) values ($1, $2) returning id",
-          [title.trim(), request.user.sub],
+          "insert into handout (title, owner, password) values ($1, $2, $3) returning id",
+          [title.trim(), request.user.sub, protect ? password : null],
         );
         address = await claimAddress(client, result.rows[0].id);
         await promoteToContent(config, materialised.token, address);
@@ -270,7 +312,7 @@ export default async function publisherRoutes(fastify) {
     async (request, reply) => {
       const { address } = request.params;
       const result = await pool.query(
-        `select h.title as title, h.owner as owner
+        `select h.title as title, h.owner as owner, h.password as password
        from address a
        join handout h on h.id = a.handout_id
        where a.value = $1`,
@@ -285,12 +327,23 @@ export default async function publisherRoutes(fastify) {
       }
 
       reply.header("content-type", "text/html; charset=utf-8");
+      reply.header("cache-control", "no-store");
       return renderDone({
         user: request.user,
         config,
         title: row.title,
         address: handoutUrl(request, address),
+        password: row.password,
       });
+    },
+  );
+
+  fastify.get(
+    "/password-suggestion",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      reply.header("cache-control", "no-store");
+      return reply.send({ password: suggestPassword() });
     },
   );
 }

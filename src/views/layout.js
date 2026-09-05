@@ -64,28 +64,46 @@ function header(user) {
 // `config` is accepted (every caller passes it, matching the shared view
 // signature) but not read here — nothing in the shell currently varies by
 // configuration.
-export function page({ title, user, body }) {
+//
+// `assetPrefix` lets a caller on the viewer side (content.js, the password
+// page) point the stylesheet links at Handout's own reserved prefix instead
+// of /static — see docs/adr/0010. `clientScript` and `mainClass` let the
+// viewer's password page opt out of the theme switch and the publisher's
+// widgets (one feature, and the viewer page has neither) and set its own
+// class on <main>.
+export function page({
+  title,
+  user,
+  body,
+  assetPrefix = "/static",
+  clientScript = true,
+  mainClass = "page-body",
+}) {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
-<link rel="stylesheet" href="/static/tokens.css">
-<link rel="stylesheet" href="/static/handout.css">
-<script>
+<link rel="stylesheet" href="${assetPrefix}/tokens.css">
+<link rel="stylesheet" href="${assetPrefix}/handout.css">
+${
+  clientScript
+    ? `<script>
   try {
     var t = localStorage.getItem("handout-theme");
     if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
   } catch (e) {}
-</script>
+</script>`
+    : ""
+}
 </head>
 <body>
 ${user ? header(user) : ""}
-<main class="page-body">
+<main class="${mainClass}">
 ${body}
 </main>
-<script src="/static/handout.js"></script>
+${clientScript ? `<script src="${assetPrefix}/handout.js"></script>` : ""}
 </body>
 </html>`;
 }

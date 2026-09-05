@@ -81,42 +81,67 @@
     });
   }
 
-  // Clipboard copy.
+  // Clipboard copy. Every [data-copy-button] on the page gets its own
+  // handle: the result page carries two (address, password), and each has
+  // to show its own receipt independently of the other.
   function initCopy() {
-    var button = document.querySelector("[data-copy-button]");
-    if (!button) return;
+    var buttons = document.querySelectorAll("[data-copy-button]");
 
-    function showConfirmation(label) {
-      var original = button.textContent;
-      button.textContent = label;
-      setTimeout(function () {
-        button.textContent = original;
-      }, 2000);
-    }
+    buttons.forEach(function (button) {
+      // The label is its own element next to the reserved ones that hold the
+      // button's width, so only the label's text may be replaced — writing to
+      // the button itself would throw the reserves away and the width with
+      // them. The fallback keeps a button without the stack working.
+      var labelEl = button.querySelector("[data-copy-label]") || button;
 
-    button.addEventListener("click", function () {
-      var field = button.closest("[data-copy]");
-      if (!field) return;
-      var failedLabel = button.getAttribute("data-copy-failed-label");
-
-      if (!navigator.clipboard) {
-        showConfirmation(failedLabel);
-        return;
+      function showConfirmation(label) {
+        var original = labelEl.textContent;
+        labelEl.textContent = label;
+        setTimeout(function () {
+          labelEl.textContent = original;
+        }, 2000);
       }
 
-      var value = field.getAttribute("data-copy");
-      navigator.clipboard.writeText(value).then(
-        function () {
-          showConfirmation(button.getAttribute("data-copied-label"));
-        },
-        function () {
-          // The clipboard write can reject (insecure context, revoked
-          // permission); silence here would be exactly the "copied twice,
-          // pasted into nothing" failure the confirmation exists to prevent.
+      button.addEventListener("click", function () {
+        var field = button.closest("[data-copy]");
+        if (!field) return;
+        var failedLabel = button.getAttribute("data-copy-failed-label");
+
+        if (!navigator.clipboard) {
           showConfirmation(failedLabel);
-        },
-      );
+          return;
+        }
+
+        var value = field.getAttribute("data-copy");
+        navigator.clipboard.writeText(value).then(
+          function () {
+            showConfirmation(button.getAttribute("data-copied-label"));
+          },
+          function () {
+            // The clipboard write can reject (insecure context, revoked
+            // permission); silence here would be exactly the "copied
+            // twice, pasted into nothing" failure the confirmation exists
+            // to prevent.
+            showConfirmation(failedLabel);
+          },
+        );
+      });
     });
+  }
+
+  // The protect checkbox toggles the password block's `hidden` property,
+  // and runs once on load so the server-rendered state and the DOM agree.
+  function initProtectToggle() {
+    var checkbox = document.getElementById("protect");
+    var block = document.querySelector("[data-password-block]");
+    if (!checkbox || !block) return;
+
+    function apply() {
+      block.hidden = !checkbox.checked;
+    }
+
+    checkbox.addEventListener("change", apply);
+    apply();
   }
 
   function formatBytes(bytes) {
@@ -152,6 +177,9 @@
     var messageBox = dropArea.querySelector("[data-drop-message]");
     var titleInput = form.querySelector("[data-title-input]");
     var fieldBlock = form.querySelector("[data-field]");
+    var protectCheckbox = form.querySelector("#protect");
+    var passwordInput = form.querySelector("#password");
+    var suggestButton = form.querySelector("[data-suggest-password]");
     var publishButton = form.querySelector("[data-publish-button]");
     var uploadBox = form.querySelector("[data-upload-box]");
     var uploadFile = uploadBox
@@ -212,6 +240,16 @@
         publishButton.disabled = true;
         publishButton.textContent = publishButton.getAttribute(
           "data-label-no-title",
+        );
+      } else if (
+        protectCheckbox &&
+        protectCheckbox.checked &&
+        passwordInput &&
+        !passwordInput.value.trim()
+      ) {
+        publishButton.disabled = true;
+        publishButton.textContent = publishButton.getAttribute(
+          "data-label-no-password",
         );
       } else {
         publishButton.disabled = false;
@@ -302,6 +340,34 @@
     });
 
     titleInput.addEventListener("input", updatePublishButton);
+
+    if (protectCheckbox) {
+      protectCheckbox.addEventListener("change", updatePublishButton);
+    }
+    if (passwordInput) {
+      passwordInput.addEventListener("input", updatePublishButton);
+    }
+    if (suggestButton && passwordInput) {
+      suggestButton.addEventListener("click", function () {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/password-suggestion", true);
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.onload = function () {
+          if (xhr.status < 200 || xhr.status >= 300) return;
+          var response;
+          try {
+            response = JSON.parse(xhr.responseText);
+          } catch {
+            return;
+          }
+          if (response && response.password) {
+            passwordInput.value = response.password;
+            updatePublishButton();
+          }
+        };
+        xhr.send();
+      });
+    }
 
     form.addEventListener("submit", function (event) {
       if (!window.XMLHttpRequest || !selectedFile) return;
@@ -403,6 +469,7 @@
     initTheme();
     initProfilePanel();
     initCopy();
+    initProtectToggle();
     initDropArea();
   });
 })();

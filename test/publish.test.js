@@ -75,7 +75,7 @@ test("the happy path: multipart POST returns 303 to /handouts/<10 chars>, and th
     );
     assert.match(
       html,
-      new RegExp(`<button[^>]*>${strings["done.copy"]}</button>`),
+      new RegExp(`data-copy-label>${strings["done.copy"]}</span>`),
     );
   } finally {
     await t2.close();
@@ -168,6 +168,24 @@ test("the done page's Kopierfeld matches the component: a classed, shrinkable le
     assert.ok(containerRule);
     assert.match(containerRule[0], /gap:\s*12px 16px/);
     assert.match(containerRule[0], /flex-wrap:\s*wrap/);
+
+    // The label stack is what keeps the two handles the same width and stops
+    // either from resizing when its receipt appears: every label sits in the
+    // same single grid cell, and the reserved ones are invisible. Without all
+    // three of these rules the reserves would stack vertically instead of
+    // holding the width.
+    const stackRule = /\.copy-field-button-stack\s*\{[^}]*\}/.exec(css);
+    assert.ok(stackRule);
+    assert.match(stackRule[0], /display:\s*grid/);
+
+    const stackChildRule =
+      /\.copy-field-button-stack\s*>\s*\*\s*\{[^}]*\}/.exec(css);
+    assert.ok(stackChildRule);
+    assert.match(stackChildRule[0], /grid-area:\s*1\s*\/\s*1/);
+
+    const reserveRule = /\.copy-field-button-reserve\s*\{[^}]*\}/.exec(css);
+    assert.ok(reserveRule);
+    assert.match(reserveRule[0], /visibility:\s*hidden/);
   } finally {
     await t2.close();
   }

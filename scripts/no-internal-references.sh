@@ -23,13 +23,21 @@ cd "$(dirname "$0")/.."
 
 PATTERN='HANDOUT-[0-9]+|atlassian\.net|kamanninfo|[Jj]ira|[Cc]onfluence|wiki/spaces|claude\.ai/design'
 
-# -I skips binary files (the fonts). This script names the patterns itself, so
-# it is the one file excluded from its own check.
-if git grep -nIE "$PATTERN" -- . ':!scripts/no-internal-references.sh'; then
+# -I skips binary files (the fonts and the sample archives). This script names
+# the patterns itself, so it is the one file excluded from its own check.
+#
+# --untracked, because tracked-only is one commit too late: a brand-new file is
+# untracked until the moment it is staged, so the check that is supposed to
+# stop it from entering the repository is the one check that cannot see it. It
+# happened - a new decision record carrying tracker keys passed this script
+# twice, and only surfaced when it was staged. Ignored files stay out either
+# way (that is what --untracked means here), so this looks at exactly the set
+# that is on its way into a commit.
+if git grep --untracked -nIE "$PATTERN" -- . ':!scripts/no-internal-references.sh'; then
 	echo
-	echo "A tracked file above points at an internal system, or names a tracker key."
+	echo "A file above points at an internal system, or names a tracker key."
 	echo "Neither belongs in the repository: write what the thing is instead."
 	exit 1
 fi
 
-echo "No internal references in tracked files."
+echo "No internal references in the files headed for a commit."

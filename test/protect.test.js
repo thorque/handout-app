@@ -303,3 +303,64 @@ test("every copy handle reserves the width of every copy label", async () => {
     await t2.close();
   }
 });
+
+// The address opens in a new tab; the password never does. The component
+// decides that by sniffing the value for http(s) (Kopierfeld.dc.html), the view
+// decides it per field - so a password that looks like a URL stays plain text,
+// which is exactly what this test pins.
+test("the address is a link that opens in a new tab, the password never is", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const { json, cookie } = await publish(t2, [
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
+      { name: "title", value: "Protected Site" },
+      { name: "protect", value: "on" },
+      { name: "password", value: "https://not-a-link.example" },
+    ]);
+
+    const doneRes = await fetch(`${t2.baseUrl}${json.location}`, {
+      headers: { cookie },
+    });
+    const html = await doneRes.text();
+
+    const anchors = html.match(/<a class="copy-field-value[^>]*>/g) || [];
+    assert.strictEqual(
+      anchors.length,
+      1,
+      "expected exactly one linked value: the address",
+    );
+    const anchor = anchors[0];
+    const address = `http://${json.location.split("/").pop()}.`;
+    assert.ok(
+      anchor.includes(`href="${address}`),
+      `expected the anchor to point at the address, got ${anchor}`,
+    );
+    assert.match(anchor, /target="_blank"/);
+    assert.match(anchor, /rel="noreferrer"/);
+
+    // The password sits in the plain element, and nowhere in an href.
+    assert.ok(
+      html.includes(
+        '<code class="copy-field-value">https://not-a-link.example</code>',
+      ),
+    );
+    assert.ok(!html.includes('href="https://not-a-link.example"'));
+
+    const cssRes = await fetch(`${t2.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
+    const css = await cssRes.text();
+    const linkRule = /\.copy-field-link\s*\{[^}]*\}/.exec(css);
+    assert.ok(linkRule);
+    assert.match(linkRule[0], /text-decoration:\s*underline/);
+    assert.match(linkRule[0], /text-underline-offset:\s*2px/);
+  } finally {
+    await t2.close();
+  }
+});

@@ -16,16 +16,37 @@ const RESERVED_LABELS = [
   strings["done.passwordCopied"],
 ];
 
-function copyField({ label, value, buttonLabel, copiedLabel, failedLabel }) {
+// The component renders the value as a link when it is an http(s) address and
+// as plain text otherwise (Kopierfeld.dc.html, the isLink / isPlain branches).
+// Here the caller says which field it is instead of the value being sniffed:
+// this view knows that the address is a URL and the password never is, and a
+// password someone chose to be "https://…" would otherwise turn into a link to
+// nowhere. Same result for every value that actually occurs, one trap fewer.
+function copyField({
+  label,
+  value,
+  link = false,
+  buttonLabel,
+  copiedLabel,
+  failedLabel,
+}) {
   const reserves = RESERVED_LABELS.map(
     (reserved) =>
       `<span class="copy-field-button-reserve" aria-hidden="true">${esc(reserved)}</span>`,
   ).join("\n        ");
 
+  // rel="noreferrer" is the component's own attribute and it is the one that
+  // matters here: it implies noopener, so the artifact opening in the new tab
+  // gets no handle on the page that opened it. The artifact is a stranger's
+  // finished file, and Handout never runs inside it.
+  const renderedValue = link
+    ? `<a class="copy-field-value copy-field-link" href="${esc(value)}" target="_blank" rel="noreferrer">${esc(value)}</a>`
+    : `<code class="copy-field-value">${esc(value)}</code>`;
+
   return `<div class="copy-field" data-copy="${esc(value)}">
     <div class="copy-field-column">
       <span class="copy-field-label">${esc(label)}</span>
-      <code class="copy-field-value">${esc(value)}</code>
+      ${renderedValue}
     </div>
     <button
       type="button"
@@ -53,6 +74,7 @@ export function renderDone({ user, config, title, address, password }) {
   ${copyField({
     label: strings["done.addressLabel"],
     value: address,
+    link: true,
     buttonLabel: strings["done.copy"],
     copiedLabel: strings["done.copied"],
     failedLabel: strings["done.copyFailed"],

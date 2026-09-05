@@ -48,6 +48,10 @@ a {
   color: var(--accent-ink);
 }
 
+a:hover {
+  color: var(--accent-hover);
+}
+
 button,
 input {
   font: inherit;
@@ -539,6 +543,15 @@ h1 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The address as a link, from the component's isLink branch: the same
+   monospace value, underlined with a 2px offset. The colour comes from the
+   page's own `a` rule (--accent-ink) - both design sources set it at page
+   level, the component's isolated preview has none of its own. */
+.copy-field-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .copy-field-button {

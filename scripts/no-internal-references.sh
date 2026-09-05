@@ -1,11 +1,13 @@
 #!/bin/sh
 # Nothing in this repository points at the systems it was planned in.
 #
-# Tracker keys, tracker and wiki hostnames, page ids and design-tool URLs are
-# coordinates of one installation. They mean nothing to whoever clones this,
-# they outlive the tools they name, and a cross-reference that only resolves
-# inside a company is worse than the sentence it replaced - so a document says
-# what a thing is, never which ticket it came from.
+# Tracker keys, tracker and wiki hostnames, page ids, design-tool URLs and the
+# name of the development environment this was built in are coordinates of one
+# installation. They mean nothing to whoever clones this, they outlive the tools
+# they name, and a cross-reference that only resolves inside a company is worse
+# than the sentence it replaced - so a document says what a thing is, never
+# which ticket it came from, and how a server is started is a property of an
+# environment, which has its own briefing and does not need a copy here.
 #
 # Branch names and commit messages are deliberately not covered: they carry the
 # key on purpose, and they are not files in the tree.
@@ -16,7 +18,7 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-PATTERN='HANDOUT-[0-9]+|atlassian\.net|kamanninfo|[Jj]ira|[Cc]onfluence|wiki/spaces|claude\.ai/design'
+PATTERN='HANDOUT-[0-9]+|atlassian\.net|kamanninfo|[Jj]ira|[Cc]onfluence|wiki/spaces|claude\.ai/design|[Mm]onoceros'
 
 # -I skips binary files (the fonts). This script names the patterns itself, so
 # it is the one file excluded from its own check.

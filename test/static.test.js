@@ -458,7 +458,7 @@ test("unauthenticated GET / redirects to /auth/login", async () => {
 });
 
 // The stylesheet's own url() references have to resolve relative to its own
-// URL (HANDOUT-8, docs/adr/0010) — /static/handout.css is one of the two
+// URL (docs/adr/0010) — /static/handout.css is one of the two
 // origins it is served from, the other being /.handout/assets/handout.css.
 test("/static/handout.css's own url() references resolve and serve", async () => {
   const t = await buildTestServer();
@@ -493,8 +493,8 @@ test("/static/handout.css's own url() references resolve and serve", async () =>
 // A blunt instrument, deliberately: the copy behaviour has no DOM in this
 // suite, and a single querySelector() version silently kills the second
 // (password) copy handle on the result page — exactly the defect this
-// story would otherwise ship. The eye-check in "Manual verification"
-// (HANDOUT-8's plan) is the other half.
+// story would otherwise ship. Looking at the page in a browser is the other
+// half.
 test("handout.js wires every copy button, not only the first", async () => {
   const t = await buildTestServer();
   try {

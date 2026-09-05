@@ -10,10 +10,9 @@ jobs:
 
     # PostgreSQL and nothing else: the test suite stands up its own stub
     # OIDC provider in-process (see test/helpers/oidc-stub.js) and never
-    # touches Caddy or Keycloak. The full chain lives in the compose blocks
-    # under .monoceros/deploy.md, for bringing up the whole product — do not
-    # add Caddy or Keycloak here "for symmetry" with that file; the tests do
-    # not need them.
+    # touches Caddy or Keycloak. Bringing up the whole product needs both, but
+    # this job is not that — do not add them here "for symmetry" with a
+    # deployment; the tests do not need them and would only wait for them.
     services:
       postgres:
         image: postgres:18
@@ -46,6 +45,9 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # Before the tests: a leaked tracker key or an internal URL is a
+      # one-line fix, and finding it after a green suite is finding it late.
+      - run: npm run check:refs
       - run: npm run lint
       - run: npm run format:check
       - run: npm test

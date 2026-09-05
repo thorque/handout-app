@@ -117,7 +117,7 @@ const PNG_BYTES = Buffer.from(
   "base64",
 );
 
-// Carries every viewer case in one fixture (HANDOUT-8): a sub page and an
+// Carries every viewer case in one fixture: a sub page and an
 // image (both must answer the password gate), plus two decoy paths whose
 // names collide with the reserved prefix elsewhere in the app
 // (handout.css, /static/*) to prove the reservation is exactly /.handout/

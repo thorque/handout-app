@@ -56,7 +56,7 @@ the staging root for every member.
 Serving `root` rather than the archive root means files outside the wrapper
 directory are unreachable, which is correct for a wrapper and invisible for
 everything else. Because nothing is moved, `.handout` is the single source of
-truth for where an artifact starts, and HANDOUT-10's atomic replacement is one
+truth for where an artifact starts, and replacing an artifact in place is one
 `rename` of a staging directory over `content/<address>/` — the metadata travels
 with the tree. The reserved name means an artifact that itself contains a
 top-level `.handout` file cannot serve it; that is accepted.

@@ -20,7 +20,8 @@ exports.up = (pgm) => {
 
     create index address_handout_id_idx on address (handout_id);
   `);
-  // password stays null until HANDOUT-8 adds a way to set it.
+  // password is null for an unprotected handout and holds the plain-text
+  // password otherwise, see docs/adr/0009-password-stored-in-plain-text.md.
 };
 
 exports.down = (pgm) => {

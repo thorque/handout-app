@@ -17,8 +17,8 @@ The two audiences also fall apart, and only one of them argues for more than one
 language. The publisher interface is the operator's own team, who already meet an
 English README, English environment variables and English logs. The viewer pages
 are the operator's clients, who did not choose Handout and get no say in what it
-speaks. This story has no viewer page at all: the password prompt is HANDOUT-8 and
-the notice for a taken address is HANDOUT-11.
+speaks. This story has no viewer page at all: the password prompt and the notice
+for an address whose handout is gone both arrive later.
 
 ## Decision
 
@@ -44,7 +44,7 @@ catalog would have to be carried by every story from here on.
 
 Whether Handout ever speaks more than one language, and in particular what the
 viewer pages speak — their readers did not choose the product. That question
-returns with HANDOUT-8, where the first viewer page appears, and it can be
+returns with the first viewer page, and it can be
 answered then without touching a template: the module is the seam.
 
 The German wording in the prototype and the design brief is kept as the tone

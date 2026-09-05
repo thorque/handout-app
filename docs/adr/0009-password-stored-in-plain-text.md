@@ -6,8 +6,8 @@ Status: accepted
 ## Context
 
 A handout's password has to be readable again after it was set: the result
-screen offers it as a copy field, the dashboard (HANDOUT-9) offers it again
-later, and reissuing one (HANDOUT-12) hands out a new one the same way. That is
+screen offers it as a copy field, the dashboard offers it again later, and
+reissuing one hands out a new one the same way. That is
 the product's own promise — the publisher never has to write the password down,
 because Handout keeps it. A password hash cannot answer that; a reversible
 encryption could, at the price of a key that has to be configured, rotated and
@@ -42,7 +42,7 @@ own authenticated screens — every one of them answers with
 `200 GET` with no directive at all, and cookie authentication does nothing to
 stop that (only `Authorization` does).
 
-Because it is recoverable, HANDOUT-9 and HANDOUT-12 need no mechanism of their
-own — a copy field and an update. And because the unlock cookie carries a
+Because it is recoverable, offering the password again and reissuing it need no
+mechanism of their own — a copy field and an update. And because the unlock cookie carries a
 fingerprint of the password rather than a flag (ADR 0010), replacing a password
 locks existing viewers out without any of this changing.

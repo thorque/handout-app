@@ -6,7 +6,7 @@ Status: accepted
 ## Context
 
 Every handout is reachable at a generated subdomain label. Until a password
-exists (HANDOUT-8) that label is the only barrier between a stranger and the
+exists that label is the only barrier between a stranger and the
 artifact, and even afterwards it is the first one. The prototype sketched six
 characters; a sketch is not a commitment. Labels are read aloud, typed by hand
 and pasted into chats, so the alphabet matters as much as the length.

@@ -48,7 +48,8 @@ file resolves correctly whether it is served at `/static/handout.css` or at
 
 1. the entry metadata for the address; missing → the unknown-address 404
 2. the handout row behind the address; missing → the same 404 (which is
-   already the right answer for HANDOUT-11's deleted handout)
+   already the right answer for a handout that was deleted while its address
+   stays taken)
 3. `password` null or empty → serve, unchanged
 4. otherwise the unlock cookie decides; invalid or absent → **401** carrying
    the password page
@@ -76,7 +77,7 @@ else and `strict` would withhold the cookie on exactly that navigation.
 
 `fingerprint` is the first 16 hex characters of the SHA-256 of the current
 password. It is checked against the password read for this request, so
-replacing a password (HANDOUT-12) invalidates every cookie already handed out,
+replacing a password invalidates every cookie already handed out,
 and it is why the gate reads the row per request rather than trusting the
 cookie alone. `address` is checked too, even though the cookie is host-scoped:
 cookies do not isolate by port or scheme, and the check costs one comparison.

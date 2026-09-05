@@ -2,7 +2,13 @@
 node_modules/
 .env
 .DS_Store
-data/
+# The contents of data/, not the directory itself: git never descends into an
+# excluded directory, so `data/` would make the exception below unreachable.
+data/*
+# The exception. The sample archives are fixtures, not runtime state — one per
+# branch of the entry-file rule, used by hand and by integration tests. The
+# rest of data/ is content, staging and local scratch files and stays out.
+!data/testdata/
 *.tgz
 
 # The container-wide gitignore excludes .monoceros/ everywhere (it means the

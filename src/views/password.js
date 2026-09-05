@@ -8,6 +8,14 @@ import { VIEWER_PREFIX, VIEWER_ASSET_PREFIX } from "../protection.js";
 // `config` is accepted (every caller passes it, matching the shared view
 // signature) but not read here — nothing on this page currently varies by
 // configuration.
+// The field carries `autofocus` as the plain HTML attribute, so the cursor sits
+// in it on arrival with no script involved: the page has one purpose and one
+// field, and after a wrong password the very same page comes back, so that is
+// where the cursor belongs both times. `aria-describedby` goes with it — the
+// focused field is what gets announced, and without the reference the refusal
+// under it would be skipped rather than read out.
+// Every comment in this file stays out of the template: the emitted page is one
+// a client sees, and Handout's internals have no business standing in it.
 export function renderPasswordPage({ error = false, config }) {
   const body = `
 <h1 class="viewer-heading">${esc(strings["viewer.heading"])}</h1>
@@ -19,11 +27,13 @@ export function renderPasswordPage({ error = false, config }) {
     type="password"
     id="viewer-password"
     name="password"
+    autofocus
     class="viewer-input${error ? " error" : ""}"
+    ${error ? 'aria-describedby="viewer-password-message"' : ""}
   >
   ${
     error
-      ? `<span class="viewer-message"><span aria-hidden="true" class="drop-message-icon">${esc(strings["error.icon"])}</span>${esc(strings["error.passwordWrong"])}</span>`
+      ? `<span class="viewer-message" id="viewer-password-message"><span aria-hidden="true" class="drop-message-icon">${esc(strings["error.icon"])}</span>${esc(strings["error.passwordWrong"])}</span>`
       : ""
   }
   <button type="submit" class="viewer-submit">${esc(strings["viewer.submit"])}</button>

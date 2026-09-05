@@ -110,6 +110,11 @@ test("without the unlock cookie, GET / on a protected address is 401 with the pa
     const html = res.body.toString("utf8");
     assert.ok(html.includes(strings["viewer.heading"]));
     assert.ok(html.includes('<form method="post" action="/.handout/password"'));
+    // The cursor sits in the field on arrival: one page, one purpose, and the
+    // plain HTML attribute so it holds without a script.
+    assert.match(html, /<input[^>]*id="viewer-password"[^>]*autofocus/s);
+    // Nothing to describe yet — the refusal is not on the page.
+    assert.doesNotMatch(html, /<input[^>]*aria-describedby/s);
     assert.ok(!html.includes("Protected entry"));
     assert.strictEqual(res.headers["cache-control"], "no-store");
     assert.strictEqual(res.headers["set-cookie"], undefined);
@@ -257,6 +262,14 @@ test("a wrong password re-renders with the error, both message and framing, and 
     assert.ok(html.includes(strings["error.passwordWrong"]));
     assert.ok(html.includes(strings["error.icon"]));
     assert.match(html, /class="viewer-input error"/);
+    // The field keeps the focus after a refusal, and the sentence is tied to it
+    // so a screen reader reads it out with the field instead of skipping it.
+    assert.match(html, /<input[^>]*id="viewer-password"[^>]*autofocus/s);
+    assert.match(
+      html,
+      /<input[^>]*aria-describedby="viewer-password-message"/s,
+    );
+    assert.match(html, /id="viewer-password-message"/);
     assert.strictEqual(
       setCookies(res).find((c) => c.startsWith("handout_unlock=")),
       undefined,

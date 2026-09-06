@@ -166,7 +166,17 @@
     var openToggle = null;
     var closeTimer = null;
 
+    // Only one menu is open at a time, so one pending auto-close timer is
+    // always enough — but it must be cancelled here, on every path that
+    // closes a menu (a second toggle, a click outside, Escape, and this
+    // timer's own callback), not only where it was started. Without this,
+    // a timer scheduled for row A by its own "Copy password" click keeps
+    // running after A is closed some other way, and later fires against
+    // whatever row is open by then — closing row B's menu out from under
+    // someone who just opened it.
     function closeMenu() {
+      clearTimeout(closeTimer);
+      closeTimer = null;
       if (!openMenu) return;
       openMenu.hidden = true;
       openMenu.classList.remove("handout-row-menu-up");

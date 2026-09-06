@@ -129,6 +129,18 @@
     });
   }
 
+  // The combined address+password handle has no no-JavaScript equivalent —
+  // there is no clipboard without a script — so it is rendered `hidden` on
+  // the server and this reveals it once initCopy() has wired it up. Address
+  // and password stay readable and selectable in their own rows regardless,
+  // with or without this running.
+  function initCopyMessage() {
+    var rows = document.querySelectorAll("[data-copy-message-row]");
+    rows.forEach(function (row) {
+      row.hidden = false;
+    });
+  }
+
   // The protect checkbox toggles the password block's `hidden` property,
   // and runs once on load so the server-rendered state and the DOM agree.
   function initProtectToggle() {
@@ -545,6 +557,7 @@
     initTheme();
     initProfilePanel();
     initCopy();
+    initCopyMessage();
     initProtectToggle();
     initDropArea();
     initEntryChoice();

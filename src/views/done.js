@@ -1,5 +1,6 @@
 import { esc, page } from "./layout.js";
 import { strings } from "./strings.js";
+import { messageText } from "../message.js";
 
 // Every label a copy handle can end up showing, in one list. Each handle
 // reserves the width of all of them, so the two buttons come out identical in
@@ -16,6 +17,24 @@ const RESERVED_LABELS = [
   strings["done.passwordCopied"],
 ];
 
+// The combined handle's own reserve set, not RESERVED_LABELS: the two field
+// buttons are deliberately narrower (min-width:112px) than the combined
+// handle (min-width:268px), and joining the shared list would drag both
+// field buttons out to the combined handle's width.
+const MESSAGE_RESERVED_LABELS = [
+  strings["done.copyBoth"],
+  strings["done.bothCopied"],
+];
+
+function reserveSpans(labels) {
+  return labels
+    .map(
+      (reserved) =>
+        `<span class="copy-field-button-reserve" aria-hidden="true">${esc(reserved)}</span>`,
+    )
+    .join("\n        ");
+}
+
 // The component renders the value as a link when it is an http(s) address and
 // as plain text otherwise (Kopierfeld.dc.html, the isLink / isPlain branches).
 // Here the caller says which field it is instead of the value being sniffed:
@@ -30,10 +49,7 @@ function copyField({
   copiedLabel,
   failedLabel,
 }) {
-  const reserves = RESERVED_LABELS.map(
-    (reserved) =>
-      `<span class="copy-field-button-reserve" aria-hidden="true">${esc(reserved)}</span>`,
-  ).join("\n        ");
+  const reserves = reserveSpans(RESERVED_LABELS);
 
   // rel="noreferrer" is the component's own attribute and it is the one that
   // matters here: it implies noopener, so the artifact opening in the new tab
@@ -57,6 +73,34 @@ function copyField({
       aria-live="polite"
     ><span class="copy-field-button-stack">
         <span class="copy-field-button-label" data-copy-label>${esc(buttonLabel)}</span>
+        ${reserves}
+      </span></button>
+  </div>`;
+}
+
+// The combined handle: a third row of the copy grid, sibling of the two
+// Kopierfeld rows, with a button and no label/value column. Rendered
+// `hidden` — revealed by initCopyMessage() in src/public/handout.js —
+// because without JavaScript there is no clipboard, and the handle must be
+// absent rather than dead while address and password stay readable in their
+// own rows regardless.
+function copyMessageRow(address, password) {
+  const text = messageText(address, password);
+  if (!text) return "";
+
+  const value = esc(text).replace(/\n/g, "&#10;");
+  const reserves = reserveSpans(MESSAGE_RESERVED_LABELS);
+
+  return `<div class="copy-field copy-message" hidden data-copy-message-row data-copy="${value}">
+    <button
+      type="button"
+      class="copy-message-button"
+      data-copy-button
+      data-copied-label="${esc(strings["done.bothCopied"])}"
+      data-copy-failed-label="${esc(strings["done.copyBothFailed"])}"
+      aria-live="polite"
+    ><span class="copy-field-button-stack">
+        <span class="copy-field-button-label" data-copy-label>${esc(strings["done.copyBoth"])}</span>
         ${reserves}
       </span></button>
   </div>`;
@@ -90,6 +134,7 @@ export function renderDone({ user, config, title, address, password }) {
         })
       : ""
   }
+  ${copyMessageRow(address, password)}
 </div>
 
 <a class="another-button" href="/">${esc(strings["done.another"])}</a>

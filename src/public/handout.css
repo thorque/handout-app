@@ -590,6 +590,31 @@ h1 {
   visibility: hidden;
 }
 
+/* The combined handle's row: five of its six declarations are .copy-field's
+   own (same background/padding/display/align/gap/wrap) — only this one is
+   new, to right-align the single button. */
+.copy-message {
+  justify-content: flex-end;
+}
+
+/* Its own class, not .copy-field-button: the prototype gives it
+   min-width:268px, deliberately wider than the field buttons' 112px
+   (Kopierfeld.dc.html says the two must stay different on purpose). */
+.copy-message-button {
+  height: var(--control-height);
+  padding: 0 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  min-width: 268px;
+  cursor: pointer;
+}
+
+.copy-message-button:hover {
+  background: var(--paper-sunken);
+}
+
 .another-button {
   margin-top: var(--space-6);
   display: inline-block;

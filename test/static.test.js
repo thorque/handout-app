@@ -506,3 +506,24 @@ test("handout.js wires every copy button, not only the first", async () => {
     await t.close();
   }
 });
+
+// The combined handle has no no-JavaScript equivalent, so it is only ever
+// revealed by this script — fetched and asserted non-empty here, the one
+// module this behaviour depends on.
+test("handout.js reveals the combined copy handle", async () => {
+  const t = await buildTestServer();
+  try {
+    const res = await fetch(`${t.baseUrl}/static/handout.js`);
+    assert.strictEqual(res.status, 200);
+    const body = await res.text();
+    assert.ok(body.length > 0);
+    assert.strictEqual(
+      res.headers.get("content-type"),
+      contentTypeFor("/static/handout.js"),
+    );
+    assert.ok(body.includes('querySelectorAll("[data-copy-message-row]")'));
+    assert.match(body, /\.hidden\s*=\s*false/);
+  } finally {
+    await t.close();
+  }
+});

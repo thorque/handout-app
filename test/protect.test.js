@@ -82,7 +82,11 @@ test("publishing protected stores the password in plain text and the done page c
       headers: { cookie },
     });
     const html = await doneRes.text();
-    const copyWrappers = html.match(/data-copy="/g) || [];
+    // "data-copy=" now also matches the combined handle's own row (3), so the
+    // two Kopierfeld rows are counted by their exact class instead — this
+    // matches neither "copy-field-column" nor the combined handle's
+    // "copy-field copy-message" (both continue past the closing quote).
+    const copyWrappers = html.match(/class="copy-field"/g) || [];
     assert.strictEqual(copyWrappers.length, 2);
     assert.ok(html.includes('data-copy="correct-horse-482"'));
     assert.match(
@@ -126,7 +130,7 @@ test("publishing without protect stays unprotected: null password, one copy fiel
       headers: { cookie },
     });
     const html = await doneRes.text();
-    const copyWrappers = html.match(/data-copy="/g) || [];
+    const copyWrappers = html.match(/class="copy-field"/g) || [];
     assert.strictEqual(copyWrappers.length, 1);
     assert.ok(html.includes(strings["done.lead"]));
   } finally {
@@ -272,10 +276,17 @@ test("every copy handle reserves the width of every copy label", async () => {
     const reserves =
       html.match(/class="copy-field-button-reserve" aria-hidden="true">/g) ||
       [];
+    // 10, not 8: the two field handles still reserve all four field labels
+    // between them (the per-label loop below is what actually pins that),
+    // plus the combined handle's own two labels — its own reserve set, not
+    // RESERVED_LABELS (departure 1 in the plan). Were the new labels folded
+    // into RESERVED_LABELS instead, this would read 14; were the combined
+    // handle to reserve RESERVED_LABELS instead of its own two, each field
+    // label below would occur 3 times instead of 2.
     assert.strictEqual(
       reserves.length,
-      labels.length * 2,
-      "expected both handles to reserve all four labels",
+      labels.length * 2 + 2,
+      "expected both field handles to reserve all four labels, plus the combined handle's own two",
     );
     for (const label of labels) {
       const occurrences =
@@ -292,11 +303,35 @@ test("every copy handle reserves the width of every copy label", async () => {
       );
     }
 
-    // The failure sentence is the one label that is not reserved: reserving it
-    // would widen both buttons permanently for a path that almost never runs.
+    for (const label of [
+      strings["done.copyBoth"],
+      strings["done.bothCopied"],
+    ]) {
+      const occurrences =
+        html.match(
+          new RegExp(
+            `copy-field-button-reserve" aria-hidden="true">${label}<`,
+            "g",
+          ),
+        ) || [];
+      assert.strictEqual(
+        occurrences.length,
+        1,
+        `expected the combined handle to reserve "${label}" exactly once`,
+      );
+    }
+
+    // The failure sentences are the labels that are not reserved: reserving
+    // one would widen its button permanently for a path that almost never
+    // runs.
     assert.ok(
       !html.includes(
         `class="copy-field-button-reserve" aria-hidden="true">${strings["done.copyFailed"]}<`,
+      ),
+    );
+    assert.ok(
+      !html.includes(
+        `class="copy-field-button-reserve" aria-hidden="true">${strings["done.copyBothFailed"]}<`,
       ),
     );
   } finally {
@@ -360,6 +395,138 @@ test("the address is a link that opens in a new tab, the password never is", asy
     assert.ok(linkRule);
     assert.match(linkRule[0], /text-decoration:\s*underline/);
     assert.match(linkRule[0], /text-underline-offset:\s*2px/);
+  } finally {
+    await t2.close();
+  }
+});
+
+// The combined handle, on the result page, carrying the composed
+// message. Every one of these fails today, where the row does not exist.
+test("the result page carries the combined handle, with the message on it", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const { json, cookie } = await publish(t2, [
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
+      { name: "title", value: "Protected Site" },
+      { name: "protect", value: "on" },
+      { name: "password", value: "correct-horse-482" },
+    ]);
+
+    const doneRes = await fetch(`${t2.baseUrl}${json.location}`, {
+      headers: { cookie },
+    });
+    const html = await doneRes.text();
+
+    assert.match(
+      html,
+      /<div class="copy-field copy-message" hidden data-copy-message-row data-copy="/,
+    );
+    const rowMatch = /data-copy-message-row data-copy="([^"]*)"/.exec(html);
+    assert.ok(rowMatch, "expected the combined handle's data-copy attribute");
+    const address = `http://${json.location.split("/").pop()}.`;
+    assert.match(
+      rowMatch[1],
+      new RegExp(`^Handout: ${address}[^&]*&#10;Password: correct-horse-482$`),
+    );
+
+    assert.ok(
+      html.includes(`data-copy-label>${strings["done.copyBoth"]}</span>`),
+    );
+    assert.ok(
+      html.includes(`data-copied-label="${strings["done.bothCopied"]}"`),
+    );
+    assert.ok(
+      html.includes(
+        `data-copy-failed-label="${strings["done.copyBothFailed"]}"`,
+      ),
+    );
+  } finally {
+    await t2.close();
+  }
+});
+
+// A real, focusable button, and its own width — distinct from
+// .copy-field-button on purpose (Kopierfeld.dc.html says the two must not
+// share a width).
+test("the combined handle is a real, focusable button of its own width", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const { json, cookie } = await publish(t2, [
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
+      { name: "title", value: "Protected Site" },
+      { name: "protect", value: "on" },
+      { name: "password", value: "correct-horse-482" },
+    ]);
+
+    const doneRes = await fetch(`${t2.baseUrl}${json.location}`, {
+      headers: { cookie },
+    });
+    const html = await doneRes.text();
+
+    const buttonTag = /<button[^>]*class="copy-message-button"[^>]*>/.exec(
+      html,
+    );
+    assert.ok(buttonTag, 'expected a <button class="copy-message-button">');
+    assert.match(buttonTag[0], /type="button"/);
+    assert.doesNotMatch(buttonTag[0], /\bdisabled\b/);
+    assert.doesNotMatch(buttonTag[0], /\btabindex\b/);
+
+    const cssRes = await fetch(`${t2.baseUrl}/static/handout.css`, {
+      headers: { cookie },
+    });
+    const css = await cssRes.text();
+
+    const messageButtonRule = /\.copy-message-button\s*\{[^}]*\}/.exec(css);
+    assert.ok(messageButtonRule, "expected a .copy-message-button rule");
+    assert.match(messageButtonRule[0], /min-width:\s*268px/);
+
+    const fieldButtonRule = /\.copy-field-button\s*\{[^}]*\}/.exec(css);
+    assert.ok(fieldButtonRule, "expected a .copy-field-button rule");
+    assert.match(fieldButtonRule[0], /min-width:\s*112px/);
+  } finally {
+    await t2.close();
+  }
+});
+
+// Read literally: without a password there
+// is no combined handle, and nowhere a "Password:" line without a value. An
+// implementation rendering the row unconditionally and letting messageText
+// return null would still put "Handout: …" on the page and pass a looser
+// check.
+test("without a password the combined handle is absent, and so is any password line", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const { json, cookie } = await publish(t2, [
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
+      { name: "title", value: "Plain Site" },
+    ]);
+
+    const doneRes = await fetch(`${t2.baseUrl}${json.location}`, {
+      headers: { cookie },
+    });
+    const html = await doneRes.text();
+
+    assert.ok(!html.includes("data-copy-message-row"));
+    assert.ok(!html.includes(strings["done.copyBoth"]));
+    assert.ok(!html.includes(strings["message.passwordLabel"]));
   } finally {
     await t2.close();
   }

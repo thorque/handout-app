@@ -65,7 +65,7 @@ function extractLocalReferences(html) {
   return [...refs];
 }
 
-test("GET / follows every local reference the page carries", async () => {
+test("GET /handouts/new follows every local reference the page carries", async () => {
   const t = await buildTestServer();
   try {
     const cookie = t.signSession({
@@ -73,7 +73,9 @@ test("GET / follows every local reference the page carries", async () => {
       name: "Test User",
       email: "t@example.invalid",
     });
-    const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
+    const res = await fetch(`${t.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
     assert.strictEqual(res.status, 200);
     const html = await res.text();
 
@@ -102,7 +104,7 @@ test("GET / follows every local reference the page carries", async () => {
   }
 });
 
-test("GET / carries a real focusable choose-file button and a hidden file input", async () => {
+test("GET /handouts/new carries a real focusable choose-file button and a hidden file input", async () => {
   const t = await buildTestServer();
   try {
     const cookie = t.signSession({
@@ -110,7 +112,9 @@ test("GET / carries a real focusable choose-file button and a hidden file input"
       name: "Test User",
       email: "t@example.invalid",
     });
-    const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
+    const res = await fetch(`${t.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
     const html = await res.text();
 
     assert.match(
@@ -132,7 +136,7 @@ test("GET / carries a real focusable choose-file button and a hidden file input"
   }
 });
 
-test("GET / builds the upload ceiling from configuration, not a template literal", async () => {
+test("GET /handouts/new builds the upload ceiling from configuration, not a template literal", async () => {
   const t = await buildTestServer({ maxUploadBytes: 1048576 });
   try {
     const cookie = t.signSession({
@@ -140,7 +144,9 @@ test("GET / builds the upload ceiling from configuration, not a template literal
       name: "Test User",
       email: "t@example.invalid",
     });
-    const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
+    const res = await fetch(`${t.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
     const html = await res.text();
     assert.ok(
       html.includes("up to 1 MB"),
@@ -163,7 +169,9 @@ test("the drop area's empty and filled wrappers are classed, and space their own
       name: "Test User",
       email: "t@example.invalid",
     });
-    const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
+    const res = await fetch(`${t.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
     const html = await res.text();
 
     // .drop-area's own gap only spaces its *direct* children — never
@@ -227,7 +235,9 @@ test("every element toggled with the hidden attribute actually stays hidden", as
       name: "Test User",
       email: "t@example.invalid",
     });
-    const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
+    const res = await fetch(`${t.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
     const html = await res.text();
 
     // The four elements toggled with `hidden` on this page today:
@@ -291,7 +301,9 @@ test("the drop area, the title field and the Publish button are exactly what an 
       name: "Test User",
       email: "t@example.invalid",
     });
-    const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
+    const res = await fetch(`${t.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
     const html = await res.text();
 
     // Siblings in the same slot: nothing but the drop area's own closing

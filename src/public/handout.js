@@ -156,6 +156,113 @@
     apply();
   }
 
+  // The dashboard row's `⋯` menu. Returns immediately when the dashboard is
+  // not the page rendered, so nothing else here is touched.
+  function initRowMenu() {
+    var toggles = document.querySelectorAll("[data-row-menu-toggle]");
+    if (toggles.length === 0) return;
+
+    var openMenu = null;
+    var openToggle = null;
+    var closeTimer = null;
+
+    function closeMenu() {
+      if (!openMenu) return;
+      openMenu.hidden = true;
+      openMenu.classList.remove("handout-row-menu-up");
+      if (openToggle) openToggle.setAttribute("aria-expanded", "false");
+      openMenu = null;
+      openToggle = null;
+    }
+
+    toggles.forEach(function (toggle) {
+      // This is what makes the handle exist at all: there is no clipboard
+      // without a script, so the toggle stays `hidden` until this runs.
+      toggle.hidden = false;
+
+      var menu = document.getElementById(toggle.getAttribute("aria-controls"));
+      if (!menu) return;
+
+      toggle.addEventListener("click", function () {
+        if (openMenu === menu) {
+          closeMenu();
+          return;
+        }
+        // Only one menu open at a time.
+        closeMenu();
+        menu.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        openMenu = menu;
+        openToggle = toggle;
+
+        // Flip-up: measure the menu's own rendered height rather than
+        // copying the component's constants, which count menu items this
+        // story does not build.
+        var rect = toggle.getBoundingClientRect();
+        var up = rect.bottom + menu.offsetHeight > window.innerHeight;
+        menu.classList.toggle("handout-row-menu-up", up);
+      });
+
+      menu.querySelectorAll("[data-copy-button]").forEach(function (item) {
+        item.addEventListener("click", function () {
+          // The receipt shows for 2000 ms in initCopy(); closing the menu
+          // after 1000 ms lets the publisher see it for the first second,
+          // then gets the menu out of the way — the component's own
+          // behaviour, kept.
+          clearTimeout(closeTimer);
+          closeTimer = setTimeout(closeMenu, 1000);
+        });
+      });
+    });
+
+    document.addEventListener("pointerdown", function (event) {
+      if (!openMenu) return;
+      if (
+        !openMenu.contains(event.target) &&
+        event.target !== openToggle &&
+        !(openToggle && openToggle.contains(event.target))
+      ) {
+        closeMenu();
+      }
+    });
+
+    // Not in the component — a deliberate addition mirroring
+    // initProfilePanel(), the one other popover in the product.
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && openMenu) closeMenu();
+    });
+  }
+
+  // Rewrites each "last state" stamp from the server's UTC text to the
+  // device's own time zone. Without JavaScript, or when Intl is missing or
+  // the value unparseable, the server's text — which names its zone — is
+  // left standing rather than replaced with a bare one.
+  function initLocalStamps() {
+    var stamps = document.querySelectorAll("[data-local-stamp]");
+    if (stamps.length === 0) return;
+    if (
+      typeof Intl === "undefined" ||
+      typeof Intl.DateTimeFormat !== "function"
+    )
+      return;
+
+    var datePart = new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "long",
+    });
+    var timePart = new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+
+    stamps.forEach(function (el) {
+      var date = new Date(el.getAttribute("datetime"));
+      if (isNaN(date.getTime())) return;
+      el.textContent = datePart.format(date) + ", " + timePart.format(date);
+    });
+  }
+
   function formatBytes(bytes) {
     if (bytes >= 1024 * 1024) {
       var mb = (bytes / (1024 * 1024)).toFixed(1);
@@ -561,5 +668,7 @@
     initProtectToggle();
     initDropArea();
     initEntryChoice();
+    initRowMenu();
+    initLocalStamps();
   });
 })();

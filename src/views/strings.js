@@ -53,10 +53,42 @@ export const strings = {
   "done.passwordCopyFailed":
     "Copying failed. Select the password and copy it by hand.",
   "done.another": "Another handout",
+  "done.toDashboard": "To the dashboard",
   "done.copyBoth": "Copy address and password",
   "done.bothCopied": "→ Address and password copied",
   "done.copyBothFailed":
     "Copying failed. Select the address and the password and copy them by hand.",
+
+  // dashboard phase. The row.* labels repeat the done.* values on purpose:
+  // the key prefix names the screen throughout this module (form., drop.,
+  // entry., done., viewer.), and the dashboard is a screen of its own. Only
+  // the message text is shared, and it is shared through src/message.js, not
+  // through a string key (docs/adr/0013).
+  "dash.heading": "My handouts",
+  "dash.countNone": "No handouts.",
+  "dash.countOne": "One handout reachable.",
+  "dash.countMany": "{count} handouts reachable.",
+  "dash.new": "New handout",
+  "dash.empty": "No handout published yet.",
+
+  "row.protected": "Password",
+  "row.open": "Freely reachable",
+  "row.lastState": "Last state",
+  "row.menu": "More actions",
+  "row.copyAddress": "Copy address",
+  "row.addressCopied": "→ Address copied",
+  "row.copyAddressFailed":
+    "Copying failed. Select the address and copy it by hand.",
+  "row.copyPassword": "Copy password",
+  "row.passwordCopied": "→ Password copied",
+  // Shorter than done.passwordCopyFailed on purpose: the password is not on
+  // screen in a row, so "select it by hand" would name a way out that does
+  // not exist.
+  "row.copyPasswordFailed": "Copying failed.",
+  "row.copyBoth": "Copy address and password",
+  "row.bothCopied": "→ Address and password copied",
+  "row.copyBothFailed": "Copying failed.",
+  "stamp.utc": "{stamp} UTC",
 
   // the message that goes into a mail or a chat — src/message.js composes it,
   // the result page and the dashboard's row menu both hand out that one form

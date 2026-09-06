@@ -22,6 +22,7 @@ import {
   UnsafeZipError,
 } from "../storage.js";
 import { renderNewHandout, formatBytes } from "../views/new-handout.js";
+import { renderDashboard } from "../views/dashboard.js";
 import { renderDone } from "../views/done.js";
 import { renderError } from "../views/error.js";
 import { renderEntryChoice, renderRejected } from "../views/entry-choice.js";
@@ -138,10 +139,41 @@ export default async function publisherRoutes(fastify) {
   const { config, pool } = fastify;
 
   fastify.get("/", { preHandler: requireUser }, async (request, reply) => {
+    const result = await pool.query(
+      `select h.title as title, h.password as password, h.updated_at as updated_at,
+              a.value as address
+         from handout h
+         join address a on a.handout_id = h.id
+        where h.owner = $1
+        order by h.updated_at desc`,
+      [request.user.sub],
+    );
+
+    const handouts = result.rows.map((row) => {
+      const href = handoutUrl(request, row.address);
+      return {
+        title: row.title,
+        password: row.password,
+        updatedAt: row.updated_at,
+        href,
+        address: href.replace(/^https?:\/\//, ""),
+      };
+    });
+
     reply.header("cache-control", "no-store");
     reply.header("content-type", "text/html; charset=utf-8");
-    return renderNewHandout({ user: request.user, config });
+    return renderDashboard({ user: request.user, config, handouts });
   });
+
+  fastify.get(
+    "/handouts/new",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      reply.header("cache-control", "no-store");
+      reply.header("content-type", "text/html; charset=utf-8");
+      return renderNewHandout({ user: request.user, config });
+    },
+  );
 
   fastify.post(
     "/handouts",
@@ -431,7 +463,9 @@ export default async function publisherRoutes(fastify) {
       if (body.cancel) {
         await removeStaging(config, stagingToken);
         await removePending(config, stagingToken);
-        const location = "/";
+        // Cancelling discards this upload; the publisher's next move is a
+        // different file, so this leads back to the form, not the list.
+        const location = "/handouts/new";
         if (acceptsJson(request)) {
           return reply.code(200).send({ location });
         }

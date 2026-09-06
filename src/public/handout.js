@@ -233,6 +233,14 @@
       if (fileInput) {
         fileInput.addEventListener("change", closeMenu);
       }
+
+      // The component's toggleEntry sets `menu: false` first thing too —
+      // the panel takes the menu's place in the row, so the menu itself
+      // must not still be sitting open above it.
+      var entryItem = menu.querySelector("[data-row-entry-item]");
+      if (entryItem) {
+        entryItem.addEventListener("click", closeMenu);
+      }
     });
 
     document.addEventListener("pointerdown", function (event) {
@@ -307,6 +315,99 @@
         ? values[name]
         : match;
     });
+  }
+
+  // The row's own refusal reporter — one implementation shared by the row
+  // upload (initRowUpload) and the entry panel (initRowEntry), both of
+  // which report into the same row-level slot the row upload already
+  // established. Returns a show(text) closure; an empty text clears it.
+  function rowMessage(list, row) {
+    var messageBox = row.querySelector("[data-row-upload-message]");
+    var box = row.querySelector("[data-row-upload-box]");
+
+    return function show(text) {
+      messageBox.textContent = "";
+      if (!text) {
+        messageBox.hidden = true;
+        return;
+      }
+      var icon = document.createElement("span");
+      icon.setAttribute("aria-hidden", "true");
+      icon.className = "handout-row-message-icon";
+      icon.textContent = list.getAttribute("data-message-icon") || "";
+      messageBox.appendChild(icon);
+      messageBox.appendChild(document.createTextNode(text));
+      messageBox.hidden = false;
+      if (box) box.hidden = true;
+    };
+  }
+
+  // The path filter behind both the entry-choice screen (initEntryChoice)
+  // and the row's entry panel (initRowEntry) — one implementation of the
+  // design's "filtering never discards the selection" rule, kept verbatim
+  // for its one existing caller and given a second one here rather than
+  // duplicated.
+  // Binds the `input` listener exactly once — the caller may still hand it
+  // a fresh `radios` array later (setRadios), which the row's entry panel
+  // does on every open, without adding a second listener: rebinding on every
+  // rebuild would stack one more "input" handler per open, each still
+  // holding its own now-detached radio list through its closure.
+  function bindPathFilter(opts) {
+    var input = opts.input;
+    var countSpan = opts.countSpan;
+    var noMatch = opts.noMatch;
+    var rowFor = opts.rowFor;
+    var radios = opts.radios;
+
+    function update() {
+      var needle = input.value.trim().toLowerCase();
+      var shown = 0;
+      var pinned = false;
+      var total = radios.length;
+
+      radios.forEach(function (radio) {
+        var candidateRow = rowFor(radio);
+        var matches =
+          !needle ||
+          candidateRow.textContent.toLowerCase().indexOf(needle) !== -1;
+        // The selected row is never hidden and never moved (docs/adr/0012,
+        // D8): the design system's own rule is "filtering never discards the
+        // selection", so a checked radio stays put and stays visible even
+        // when the needle would otherwise exclude it — the component's own
+        // implementation (which pins it back to the top of the list) is not
+        // followed here, only its stated rule.
+        if (radio.checked && !matches) {
+          pinned = true;
+          candidateRow.hidden = false;
+          return;
+        }
+        candidateRow.hidden = !matches;
+        if (matches) shown += 1;
+      });
+
+      if (countSpan) {
+        var template = pinned
+          ? countSpan.getAttribute("data-template-some-pinned")
+          : shown === total
+            ? countSpan.getAttribute("data-template-all")
+            : countSpan.getAttribute("data-template-some");
+        countSpan.textContent = substitute(template, {
+          shown: shown,
+          total: total,
+        });
+      }
+
+      if (noMatch) noMatch.hidden = shown !== 0 || pinned;
+    }
+
+    input.addEventListener("input", update);
+
+    return {
+      update: update,
+      setRadios: function (nextRadios) {
+        radios = nextRadios;
+      },
+    };
   }
 
   // Drop area, title prefill, publish button state, upload.
@@ -676,48 +777,17 @@
     var filterInput = filterBlock.querySelector("[data-entry-filter-input]");
     var countSpan = filterBlock.querySelector("[data-entry-filter-count]");
     var noMatch = document.querySelector("[data-entry-no-match]");
-    var total = radios.length;
 
-    function updateFilter() {
-      var needle = filterInput.value.trim().toLowerCase();
-      var shown = 0;
-      var pinned = false;
-
-      radios.forEach(function (radio) {
-        var row = radio.closest(".entry-row");
-        var matches =
-          !needle || row.textContent.toLowerCase().indexOf(needle) !== -1;
-        // The selected row is never hidden and never moved (docs/adr/0012,
-        // D8): the design system's own rule is "filtering never discards the
-        // selection", so a checked radio stays put and stays visible even
-        // when the needle would otherwise exclude it — the component's own
-        // implementation (which pins it back to the top of the list) is not
-        // followed here, only its stated rule.
-        if (radio.checked && !matches) {
-          pinned = true;
-          row.hidden = false;
-          return;
-        }
-        row.hidden = !matches;
-        if (matches) shown += 1;
-      });
-
-      if (countSpan) {
-        var template = pinned
-          ? countSpan.getAttribute("data-template-some-pinned")
-          : shown === total
-            ? countSpan.getAttribute("data-template-all")
-            : countSpan.getAttribute("data-template-some");
-        countSpan.textContent = substitute(template, {
-          shown: shown,
-          total: total,
-        });
-      }
-
-      if (noMatch) noMatch.hidden = shown !== 0 || pinned;
-    }
-
-    filterInput.addEventListener("input", updateFilter);
+    bindPathFilter({
+      filterBlock: filterBlock,
+      input: filterInput,
+      countSpan: countSpan,
+      noMatch: noMatch,
+      radios: Array.prototype.slice.call(radios),
+      rowFor: function (radio) {
+        return radio.closest(".entry-row");
+      },
+    });
   }
 
   // The dashboard row's own upload — a new state onto an already-published
@@ -737,25 +807,10 @@
       var boxFile = row.querySelector("[data-row-upload-file]");
       var boxPercent = row.querySelector("[data-row-upload-percent]");
       var boxFill = row.querySelector("[data-row-upload-fill]");
-      var messageBox = row.querySelector("[data-row-upload-message]");
       var stampEl = row.querySelector("[data-local-stamp]");
       if (!uploadItem || !fileInput) return;
 
-      function showMessage(text) {
-        messageBox.textContent = "";
-        if (!text) {
-          messageBox.hidden = true;
-          return;
-        }
-        var icon = document.createElement("span");
-        icon.setAttribute("aria-hidden", "true");
-        icon.className = "handout-row-message-icon";
-        icon.textContent = list.getAttribute("data-message-icon") || "";
-        messageBox.appendChild(icon);
-        messageBox.appendChild(document.createTextNode(text));
-        messageBox.hidden = false;
-        box.hidden = true;
-      }
+      var showMessage = rowMessage(list, row);
 
       function extensionOf(name) {
         var match = /\.[a-z0-9]+$/i.exec(name);
@@ -847,6 +902,229 @@
     });
   }
 
+  // The row's "change the entry page" panel (docs/adr/0021). Every word in
+  // the panel's markup comes from a data-* attribute the view
+  // wrote (docs/adr/0006); nothing here is an interface literal. Returns
+  // immediately when the dashboard is not the page rendered.
+  function initRowEntry() {
+    var list = document.querySelector("[data-handout-list]");
+    if (!list) return;
+
+    var template = document.querySelector("[data-row-entry-template]");
+
+    list.querySelectorAll("[data-handout-row]").forEach(function (row) {
+      var panel = row.querySelector("[data-row-entry-panel]");
+      var entryItem = row.querySelector("[data-row-entry-item]");
+      if (!panel || !entryItem) return;
+
+      var toggle = row.querySelector("[data-row-menu-toggle]");
+      var entryUrl = row.getAttribute("data-entry-url");
+      // "/handouts/<address>/entry" — the bare address, the same one the
+      // design's own groupName/id scheme is built from (HandoutZeile.dc.html:
+      // entryGroup: "entry-" + rowId).
+      var address = entryUrl.split("/")[2];
+      var group = "entry-" + address;
+
+      var descriptionEl = panel.querySelector("[data-row-entry-description]");
+      var filterBlock = panel.querySelector("[data-row-entry-filter]");
+      var filterInput = filterBlock.querySelector(
+        "[data-row-entry-filter-input]",
+      );
+      var filterCount = filterBlock.querySelector(
+        "[data-row-entry-filter-count]",
+      );
+      var listEl = panel.querySelector("[data-row-entry-list]");
+      var noMatch = listEl.querySelector("[data-row-entry-no-match]");
+      var saveButton = panel.querySelector("[data-row-entry-save]");
+      var cancelButton = panel.querySelector("[data-row-entry-cancel]");
+
+      var showMessage = rowMessage(list, row);
+      var currentEntry = null;
+
+      // Bound once per row, not once per open: the panel is refetched and
+      // rebuilt on every open (below), and rebinding the filter each time
+      // would stack one more "input" listener per open, each still holding
+      // its own now-detached radio list through its closure. buildRows()
+      // hands the current list in through setRadios instead.
+      var filterController = bindPathFilter({
+        input: filterInput,
+        countSpan: filterCount,
+        noMatch: noMatch,
+        radios: [],
+        rowFor: function (radio) {
+          return radio.closest(".handout-row-entry-row");
+        },
+      });
+
+      function checkedRadio() {
+        return panel.querySelector('input[name="' + group + '"]:checked');
+      }
+
+      // The save state rule, from the component: disabled while nothing is
+      // chosen or the choice equals the current entry; recomputed on every
+      // radio change and after every save attempt.
+      function updateSaveState() {
+        var checked = checkedRadio();
+        var value = checked ? checked.value : null;
+        var disabled = !value || value === currentEntry;
+        saveButton.disabled = disabled;
+        saveButton.textContent = saveButton.getAttribute(
+          disabled ? "data-label-unchanged" : "data-label-ready",
+        );
+      }
+
+      // Rebuilds the radio list from the page's one shared
+      // [data-row-entry-template], cloned per candidate rather than
+      // server-rendered per row — the amount of markup per row stays
+      // constant regardless of how many pages the archive holds.
+      function buildRows(candidates, entry) {
+        listEl
+          .querySelectorAll(".handout-row-entry-row")
+          .forEach(function (el) {
+            el.remove();
+          });
+
+        var radios = [];
+        candidates.forEach(function (candidatePath, i) {
+          var clone = template.content.firstElementChild.cloneNode(true);
+          var input = clone.querySelector("input");
+          var span = clone.querySelector("span");
+          var id = group + "-" + i;
+          input.name = group;
+          input.id = id;
+          input.value = candidatePath;
+          input.checked = candidatePath === entry;
+          clone.setAttribute("for", id);
+          span.textContent = candidatePath;
+          input.addEventListener("change", updateSaveState);
+          listEl.insertBefore(clone, noMatch);
+          radios.push(input);
+        });
+
+        // Reset in both branches: a candidate count that drops from >8 to
+        // <=8 between two opens (the concurrent-upload case decision 2
+        // exists for) must not leave a stale "No path contains this text."
+        // sitting under a now fully shown list.
+        filterInput.value = "";
+        filterController.setRadios(radios);
+        if (candidates.length > 8) {
+          filterBlock.hidden = false;
+          filterController.update();
+        } else {
+          filterBlock.hidden = true;
+          noMatch.hidden = true;
+        }
+
+        return radios;
+      }
+
+      function closePanel() {
+        panel.hidden = true;
+        showMessage("");
+        if (toggle) toggle.focus();
+      }
+
+      // Refetches on every open, so the list is what lies under the address
+      // at the moment the question is put (docs/adr/0021) — never a copy
+      // taken at render time.
+      function openPanel() {
+        showMessage("");
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", entryUrl, true);
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.onload = function () {
+          var response = null;
+          try {
+            response = JSON.parse(xhr.responseText);
+          } catch {
+            // fall through with response left null
+          }
+          if (xhr.status < 200 || xhr.status >= 300) {
+            if (response && response.error) showMessage(response.error);
+            return;
+          }
+
+          currentEntry = response.entry || null;
+          descriptionEl.textContent = currentEntry
+            ? substitute(descriptionEl.getAttribute("data-template-current"), {
+                entry: currentEntry,
+              })
+            : descriptionEl.getAttribute("data-template-none");
+
+          var radios = buildRows(response.candidates || [], currentEntry);
+          updateSaveState();
+
+          panel.hidden = false;
+          var checked = radios.filter(function (radio) {
+            return radio.checked;
+          })[0];
+          (checked || radios[0] || cancelButton).focus();
+        };
+        // A transport failure leaves the panel closed with nothing to
+        // report — there is no response to read a sentence from.
+        xhr.onerror = function () {};
+        xhr.send();
+      }
+
+      entryItem.addEventListener("click", openPanel);
+      cancelButton.addEventListener("click", closePanel);
+
+      saveButton.addEventListener("click", function () {
+        var checked = checkedRadio();
+        if (!checked) return;
+        var entry = checked.value;
+
+        saveButton.disabled = true;
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", entryUrl, true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.onload = function () {
+          var response = null;
+          try {
+            response = JSON.parse(xhr.responseText);
+          } catch {
+            // fall through with response left null
+          }
+          if (xhr.status >= 200 && xhr.status < 300) {
+            currentEntry = response.entry;
+            closePanel();
+            return;
+          }
+          // The choice is not lost: the panel stays open and the message
+          // reports why the save was refused.
+          if (response && response.error) showMessage(response.error);
+          updateSaveState();
+        };
+        xhr.onerror = function () {
+          updateSaveState();
+        };
+        xhr.send(JSON.stringify({ entry: entry }));
+      });
+
+      // Not in the design — a deliberate addition mirroring the row menu's
+      // own Escape handler and initProfilePanel(), the other popovers in the
+      // product.
+      panel.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !panel.hidden) closePanel();
+      });
+
+      // The design's own state machine makes the row's panels mutually
+      // exclusive, and a list derived before an upload is about to be
+      // wrong — closing here rather than leaving a stale panel open under
+      // a state the upload is about to replace.
+      var fileInput = row.querySelector("[data-row-file-input]");
+      if (fileInput) {
+        fileInput.addEventListener("change", function () {
+          if (!panel.hidden) {
+            panel.hidden = true;
+            showMessage("");
+          }
+        });
+      }
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initTheme();
     initProfilePanel();
@@ -857,6 +1135,7 @@
     initEntryChoice();
     initRowMenu();
     initRowUpload();
+    initRowEntry();
     initLocalStamps();
   });
 })();

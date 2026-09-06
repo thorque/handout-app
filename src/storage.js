@@ -164,6 +164,19 @@ function compareCandidates(a, b) {
   return CANDIDATE_COLLATOR.compare(basename(a), basename(b));
 }
 
+// The one predicate that decides "is this member a candidate entry page",
+// shared by entryCandidatesFrom below, the dashboard's per-row probe
+// (hasSeveralEntryCandidates) and the fetched panel list — one rule, in one
+// place, so the menu's gate, the list shown and the server-side re-check can
+// never disagree (docs/adr/0021).
+export function isEntryCandidate(name, root) {
+  return (
+    !isArchiveNoise(name) &&
+    isHtmlMember(name) &&
+    (root ? name.startsWith(`${root}/`) : true)
+  );
+}
+
 // The single filter both the entry-choice screen and the server-side
 // re-check call (docs/adr/0012) — archive noise removed by the same helper
 // resolveZipEntry itself uses, HTML members only, relative to `root`, sorted
@@ -172,9 +185,7 @@ function compareCandidates(a, b) {
 export function entryCandidatesFrom(names, root) {
   const prefix = root ? `${root}/` : "";
   return names
-    .filter((name) => !isArchiveNoise(name))
-    .filter((name) => isHtmlMember(name))
-    .filter((name) => (root ? name.startsWith(prefix) : true))
+    .filter((name) => isEntryCandidate(name, root))
     .map((name) => (root ? name.slice(prefix.length) : name))
     .sort(compareCandidates);
 }
@@ -438,20 +449,23 @@ export async function setStagingEntry(config, stagingToken, entry) {
   await fsp.writeFile(metaPath, JSON.stringify(meta), "utf8");
 }
 
-async function listStagingMembers(stagingDir) {
+// Generic despite the name it grew under — used for a staging directory and,
+// since docs/adr/0021, for a live state directory too (stateEntryCandidates
+// below).
+async function listMembersUnder(dir) {
   const results = [];
-  async function walk(dir, prefix) {
-    const entries = await fsp.readdir(dir, { withFileTypes: true });
+  async function walk(current, prefix) {
+    const entries = await fsp.readdir(current, { withFileTypes: true });
     for (const dirent of entries) {
       const rel = prefix ? `${prefix}/${dirent.name}` : dirent.name;
       if (dirent.isDirectory()) {
-        await walk(path.join(dir, dirent.name), rel);
+        await walk(path.join(current, dirent.name), rel);
       } else {
         results.push(rel);
       }
     }
   }
-  await walk(stagingDir, "");
+  await walk(dir, "");
   return results;
 }
 
@@ -467,7 +481,7 @@ export async function stagingEntryCandidates(config, stagingToken) {
     "utf8",
   );
   const meta = JSON.parse(raw);
-  const names = await listStagingMembers(stagingDir);
+  const names = await listMembersUnder(stagingDir);
   return entryCandidatesFrom(names, meta.root);
 }
 
@@ -537,6 +551,76 @@ export async function readMetaFrom(stateDir) {
     return JSON.parse(raw);
   } catch (err) {
     if (err.code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+// Resolves the address's live state and derives its candidate list fresh
+// from what is actually on disk — never a stored copy (docs/adr/0021).
+// `null` when the address has no live state at all, which
+// the caller answers 404. `state` and `meta` come back alongside the list
+// because the POST route re-checks the very state it derived the list from,
+// not a second resolution that could have moved.
+export async function stateEntryCandidates(config, address) {
+  const state = await resolveState(config, address);
+  const meta = await readMetaFrom(state.dir);
+  if (!meta) return null;
+  const names = await listMembersUnder(state.dir);
+  return { state, meta, candidates: entryCandidatesFrom(names, meta.root) };
+}
+
+// The dashboard's per-row gate: "are there at least two entry candidates?",
+// answered as cheaply as the shape allows rather than by deriving the whole
+// list. A PDF or a single bare HTML file is stored as one file with
+// `root: ""` and can never have two candidates, so those never touch the
+// disk beyond the `.handout` read. For a zip, the directory is walked and
+// counting stops the moment a second candidate turns up — the answer is a
+// boolean, so which two members are found first never matters, and a
+// pathological archive (one HTML file under many thousands of assets) still
+// terminates on the first HTML pair rather than reading every member.
+export async function hasSeveralEntryCandidates(config, address) {
+  const state = await resolveState(config, address);
+  const meta = await readMetaFrom(state.dir);
+  if (!meta || meta.kind !== "zip") return false;
+
+  let count = 0;
+  async function walk(dir, prefix) {
+    const entries = await fsp.readdir(dir, { withFileTypes: true });
+    for (const dirent of entries) {
+      const rel = prefix ? `${prefix}/${dirent.name}` : dirent.name;
+      if (dirent.isDirectory()) {
+        if (await walk(path.join(dir, dirent.name), rel)) return true;
+      } else if (isEntryCandidate(rel, meta.root)) {
+        count += 1;
+        if (count >= 2) return true;
+      }
+    }
+    return false;
+  }
+  await walk(state.dir, "");
+  return count >= 2;
+}
+
+// Rewrites only `entry` in a live state's own .handout, atomically —
+// writeStatePointer's pattern applied one level down: write
+// `.handout.<random>` beside the target, then rename onto it, so no request
+// ever reads a half-written file (docs/adr/0021). setStagingEntry stays a
+// plain write because nothing ever serves a staging directory, so there is
+// no reader to protect from a half-written file there.
+export async function setStateEntry(stateDir, entry) {
+  if (typeof entry !== "string" || entry.trim() === "") {
+    throw new Error("setStateEntry requires a non-empty entry");
+  }
+  const metaPath = path.join(stateDir, HANDOUT_META_FILE);
+  const raw = await fsp.readFile(metaPath, "utf8");
+  const meta = JSON.parse(raw);
+  meta.entry = entry;
+  const tmpPath = `${metaPath}.${randomBytes(8).toString("hex")}`;
+  await fsp.writeFile(tmpPath, JSON.stringify(meta), "utf8");
+  try {
+    await fsp.rename(tmpPath, metaPath);
+  } catch (err) {
+    await fsp.rm(tmpPath, { force: true });
     throw err;
   }
 }

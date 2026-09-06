@@ -53,6 +53,15 @@ file is now `summary.html`, and only then does the question come back, because
 the file it pointed at is gone. The pages link to each other, so you can also
 check that the ones you did not choose stay reachable.
 
+**Changing the entry page without uploading**, with `4-zip-many-html/a.zip`
+again. Publish it and choose `overview.html`. From the row's `⋯` menu, "Change
+the entry page" opens a panel in the row itself; pick `chapter-01/page.html`
+and save. The address opens on that page now, with nothing uploaded, and the
+time in the row does not move. A second tab that already had the address open
+shows the new page on a plain reload, even with a warm cache.
+`3-zip-one-html/` and `2-single-pdf/` are the rows where the menu never offers
+the item at all — there is only ever one candidate to choose from.
+
 **The refusals.** `5-refused/no-html.zip` is an archive with nothing to show.
 `too-large.html` is over the ceiling. Anything that is neither zip, HTML nor PDF
 is refused for its form. In every case the handout keeps the state it had.

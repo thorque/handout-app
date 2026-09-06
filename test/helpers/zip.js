@@ -132,6 +132,15 @@ export const AMBIGUOUS_WITHOUT_A = buildZip([
   { name: "c.html", content: "<html><body>c</body></html>" },
 ]);
 
+// Resolves on its own (index.html at the root, ADR 0003 rule 1) *and*
+// holds a second HTML page — the shape this story exists for: nothing was
+// ambiguous at publish time, and the chosen entry turns out to be wrong.
+export const MULTI_PAGE_WITH_INDEX = buildZip([
+  { name: "index.html", content: "<html><body>Overview page</body></html>" },
+  { name: "summary.html", content: "<html><body>Summary page</body></html>" },
+  { name: "assets/app.css", content: "body { color: teal; }" },
+]);
+
 // A real, minimal 1x1 PNG (not just bytes that merely look like one) — the
 // static route's content-type check follows every reference out of a page,
 // including an <img>, so the fixture has to decode.

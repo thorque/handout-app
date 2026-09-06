@@ -23,6 +23,9 @@ import {
   readStagingMeta,
   setStagingEntry,
   stagingEntryCandidates,
+  hasSeveralEntryCandidates,
+  stateEntryCandidates,
+  setStateEntry,
   sweepAbandoned,
   TooLargeError,
   UnsupportedError,
@@ -262,20 +265,36 @@ export default async function publisherRoutes(fastify) {
       [request.user.sub],
     );
 
-    const handouts = result.rows.map((row) => {
-      const href = handoutUrl(request, row.address);
-      return {
-        title: row.title,
-        password: row.password,
-        updatedAt: row.updated_at,
-        href,
-        address: href.replace(/^https?:\/\//, ""),
-        // The bare address value, as it stands in the database and in the
-        // update route's own URL (POST /handouts/:address/state) — distinct
-        // from `address` above, which is the full host shown to the reader.
-        rawAddress: row.address,
-      };
-    });
+    // canChangeEntry asks a boolean per row rather than deriving the row's
+    // candidate list (decision 1, docs/adr/0021): the dashboard is the
+    // most-visited screen, and a row whose panel is never opened should not
+    // pay for the full walk a fetched panel needs. A row whose disk read
+    // fails (its content vanished underneath) answers `false` rather than
+    // failing the whole dashboard — logged, not thrown.
+    const handouts = await Promise.all(
+      result.rows.map(async (row) => {
+        const href = handoutUrl(request, row.address);
+        const canChangeEntry = await hasSeveralEntryCandidates(
+          config,
+          row.address,
+        ).catch((err) => {
+          request.log.error(err);
+          return false;
+        });
+        return {
+          title: row.title,
+          password: row.password,
+          updatedAt: row.updated_at,
+          href,
+          address: href.replace(/^https?:\/\//, ""),
+          // The bare address value, as it stands in the database and in the
+          // update route's own URL (POST /handouts/:address/state) — distinct
+          // from `address` above, which is the full host shown to the reader.
+          rawAddress: row.address,
+          canChangeEntry,
+        };
+      }),
+    );
 
     reply.header("cache-control", "no-store");
     reply.header("content-type", "text/html; charset=utf-8");
@@ -673,6 +692,124 @@ export default async function publisherRoutes(fastify) {
         updatedAt: updatedAt.toISOString(),
         updatedAtText: t("stamp.utc", { stamp: utcStamp(updatedAt) }),
       });
+    },
+  );
+
+  // Reads and rewrites which file a live state's `/` resolves to — no
+  // upload, no database statement, only `entry` in the state's own
+  // `.handout` (docs/adr/0021). JSON only, on every path, like the row
+  // upload route above: the `⋯` menu that holds this action is rendered
+  // hidden and revealed by script, so there is no no-JavaScript path into
+  // either route to serve HTML into.
+  fastify.get(
+    "/handouts/:address/entry",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      const { address } = request.params;
+      const result = await pool.query(
+        "select h.owner as owner from address a join handout h on h.id = a.handout_id where a.value = $1",
+        [address],
+      );
+      const row = result.rows[0];
+      if (!row || row.owner !== request.user.sub) {
+        return reply.code(404).send({ error: strings["error.unknownAddress"] });
+      }
+
+      let found;
+      try {
+        found = await stateEntryCandidates(config, address);
+      } catch (err) {
+        if (err.code === "ENOENT") {
+          return reply
+            .code(404)
+            .send({ error: strings["error.unknownAddress"] });
+        }
+        throw err;
+      }
+      if (!found) {
+        return reply.code(404).send({ error: strings["error.unknownAddress"] });
+      }
+
+      reply.header("cache-control", "no-store");
+      return reply.send({
+        entry: found.meta.entry ?? null,
+        candidates: found.candidates,
+      });
+    },
+  );
+
+  fastify.post(
+    "/handouts/:address/entry",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      const { address } = request.params;
+      const result = await pool.query(
+        "select h.owner as owner from address a join handout h on h.id = a.handout_id where a.value = $1",
+        [address],
+      );
+      const row = result.rows[0];
+      if (!row || row.owner !== request.user.sub) {
+        return reply.code(404).send({ error: strings["error.unknownAddress"] });
+      }
+
+      let found;
+      try {
+        found = await stateEntryCandidates(config, address);
+      } catch (err) {
+        if (err.code === "ENOENT") {
+          return reply
+            .code(404)
+            .send({ error: strings["error.unknownAddress"] });
+        }
+        throw err;
+      }
+      if (!found) {
+        return reply.code(404).send({ error: strings["error.unknownAddress"] });
+      }
+
+      const entry =
+        typeof request.body?.entry === "string" ? request.body.entry : "";
+      if (!entry) {
+        return reply.code(422).send({ error: strings["error.entryNotChosen"] });
+      }
+      // Exact membership, the same gate the entry-choice route already
+      // uses: it is the only check that also refuses a real member of the
+      // zip that is not HTML, not only a path outside the root.
+      if (!found.candidates.includes(entry)) {
+        return reply.code(422).send({ error: strings["error.entryNotInZip"] });
+      }
+
+      // The pointer may have moved between the resolution above and this
+      // write (a concurrent upload landing a new state). Re-reading it now
+      // and refusing on a mismatch is cheaper than re-checking after a
+      // write that could otherwise land on the wrong state — and applying a
+      // choice made against a list that no longer describes what is served
+      // would be a guess, not a correction (docs/adr/0020, docs/adr/0021).
+      const currentPointer = await readStatePointer(config, address);
+      const stillCurrent = currentPointer
+        ? currentPointer === found.state.id
+        : found.state.id === address;
+      if (!stillCurrent) {
+        return reply
+          .code(409)
+          .send({ error: strings["error.entryStateMoved"] });
+      }
+
+      try {
+        await setStateEntry(found.state.dir, entry);
+      } catch (err) {
+        if (err.code === "ENOENT") {
+          return reply
+            .code(409)
+            .send({ error: strings["error.entryStateMoved"] });
+        }
+        throw err;
+      }
+
+      // No database statement on this path — `updated_at` names the last
+      // uploaded state, and nothing was uploaded (the fourth acceptance
+      // criterion).
+      return reply.code(200).send({ entry });
     },
   );
 

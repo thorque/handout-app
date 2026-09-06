@@ -1,0 +1,5 @@
+# The sample PDFs hold no NUL byte, so git's own heuristic files them as text
+# and a checkout with line-ending conversion on would rewrite bytes inside the
+# content stream — leaving a file whose xref offsets no longer point anywhere.
+# The zips and fonts are detected as binary on their own; these are not.
+*.pdf binary

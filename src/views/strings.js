@@ -95,6 +95,7 @@ export const strings = {
   "row.copyBoth": "Copy address and password",
   "row.bothCopied": "→ Address and password copied",
   "row.copyBothFailed": "Copying failed.",
+  "row.uploadState": "Upload a new state",
   "stamp.utc": "{stamp} UTC",
 
   // the message that goes into a mail or a chat — src/message.js composes it,

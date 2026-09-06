@@ -223,6 +223,16 @@
           closeTimer = setTimeout(closeMenu, 1000);
         });
       });
+
+      // HandoutZeile.dc.html's own onPick: `this.setState({ menu: false })`,
+      // unconditionally, before anything else runs. Without this the menu —
+      // 292px wide — stays open for the whole transfer and, on a narrow
+      // viewport where the row wraps, sits right on top of the progress
+      // panel and the refusal message below it.
+      var fileInput = menu.querySelector("[data-row-file-input]");
+      if (fileInput) {
+        fileInput.addEventListener("change", closeMenu);
+      }
     });
 
     document.addEventListener("pointerdown", function (event) {
@@ -247,30 +257,39 @@
   // device's own time zone. Without JavaScript, or when Intl is missing or
   // the value unparseable, the server's text — which names its zone — is
   // left standing rather than replaced with a bare one.
-  function initLocalStamps() {
-    var stamps = document.querySelectorAll("[data-local-stamp]");
-    if (stamps.length === 0) return;
-    if (
-      typeof Intl === "undefined" ||
-      typeof Intl.DateTimeFormat !== "function"
-    )
-      return;
-
-    var datePart = new Intl.DateTimeFormat("en-GB", {
+  var localStampDatePart, localStampTimePart;
+  if (
+    typeof Intl !== "undefined" &&
+    typeof Intl.DateTimeFormat === "function"
+  ) {
+    localStampDatePart = new Intl.DateTimeFormat("en-GB", {
       day: "numeric",
       month: "long",
     });
-    var timePart = new Intl.DateTimeFormat("en-GB", {
+    localStampTimePart = new Intl.DateTimeFormat("en-GB", {
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
     });
+  }
 
-    stamps.forEach(function (el) {
-      var date = new Date(el.getAttribute("datetime"));
-      if (isNaN(date.getTime())) return;
-      el.textContent = datePart.format(date) + ", " + timePart.format(date);
-    });
+  // Rewrites one "last state" stamp from the server's UTC text to the
+  // device's own time zone. Without Intl, or with an unparseable value, the
+  // server's text — which names its zone — is left standing rather than
+  // replaced with a bare one. Split out of initLocalStamps() so a row's
+  // stamp can be re-rendered on its own once an update finishes, without
+  // re-scanning the whole page.
+  function applyLocalStamp(el) {
+    if (!localStampDatePart) return;
+    var date = new Date(el.getAttribute("datetime"));
+    if (isNaN(date.getTime())) return;
+    el.textContent =
+      localStampDatePart.format(date) + ", " + localStampTimePart.format(date);
+  }
+
+  function initLocalStamps() {
+    var stamps = document.querySelectorAll("[data-local-stamp]");
+    stamps.forEach(applyLocalStamp);
   }
 
   function formatBytes(bytes) {
@@ -701,6 +720,133 @@
     filterInput.addEventListener("input", updateFilter);
   }
 
+  // The dashboard row's own upload — a new state onto an already-published
+  // handout, from its "Upload a new state" menu item. Returns immediately
+  // when the dashboard is not the page rendered.
+  function initRowUpload() {
+    var list = document.querySelector("[data-handout-list]");
+    if (!list) return;
+
+    var maxUploadBytes = Number(list.getAttribute("data-max-upload-bytes"));
+    var allowedExtensions = [".zip", ".html", ".htm", ".pdf"];
+
+    list.querySelectorAll("[data-handout-row]").forEach(function (row) {
+      var uploadItem = row.querySelector("[data-row-upload]");
+      var fileInput = row.querySelector("[data-row-file-input]");
+      var box = row.querySelector("[data-row-upload-box]");
+      var boxFile = row.querySelector("[data-row-upload-file]");
+      var boxPercent = row.querySelector("[data-row-upload-percent]");
+      var boxFill = row.querySelector("[data-row-upload-fill]");
+      var messageBox = row.querySelector("[data-row-upload-message]");
+      var stampEl = row.querySelector("[data-local-stamp]");
+      if (!uploadItem || !fileInput) return;
+
+      function showMessage(text) {
+        messageBox.textContent = "";
+        if (!text) {
+          messageBox.hidden = true;
+          return;
+        }
+        var icon = document.createElement("span");
+        icon.setAttribute("aria-hidden", "true");
+        icon.className = "handout-row-message-icon";
+        icon.textContent = list.getAttribute("data-message-icon") || "";
+        messageBox.appendChild(icon);
+        messageBox.appendChild(document.createTextNode(text));
+        messageBox.hidden = false;
+        box.hidden = true;
+      }
+
+      function extensionOf(name) {
+        var match = /\.[a-z0-9]+$/i.exec(name);
+        return match ? match[0].toLowerCase() : "";
+      }
+
+      uploadItem.addEventListener("click", function () {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener("change", function () {
+        var file = fileInput.files && fileInput.files[0];
+        fileInput.value = "";
+        if (!file) return;
+
+        showMessage("");
+
+        if (file.size > maxUploadBytes) {
+          showMessage(
+            substitute(list.getAttribute("data-too-large"), {
+              size: formatBytes(file.size),
+              limit: formatBytes(maxUploadBytes),
+            }),
+          );
+          return;
+        }
+        if (allowedExtensions.indexOf(extensionOf(file.name)) === -1) {
+          showMessage(list.getAttribute("data-unsupported"));
+          return;
+        }
+
+        uploadItem.disabled = true;
+        box.hidden = false;
+        boxFile.textContent = file.name + " · " + formatBytes(file.size);
+        boxPercent.textContent = "0 %";
+        boxFill.style.width = "0%";
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", row.getAttribute("data-upload-url"), true);
+        xhr.setRequestHeader("Accept", "application/json");
+
+        function finish() {
+          uploadItem.disabled = false;
+          box.hidden = true;
+        }
+
+        xhr.upload.onprogress = function (progressEvent) {
+          if (!progressEvent.lengthComputable) return;
+          var percent = Math.round(
+            (progressEvent.loaded / progressEvent.total) * 100,
+          );
+          boxPercent.textContent = percent + " %";
+          boxFill.style.width = percent + "%";
+        };
+
+        xhr.onload = function () {
+          var response = null;
+          try {
+            response = JSON.parse(xhr.responseText);
+          } catch {
+            // fall through with response left null
+          }
+
+          if (xhr.status >= 200 && xhr.status < 300) {
+            if (response && response.location) {
+              window.location.assign(response.location);
+              return;
+            }
+            if (response && response.updatedAt && stampEl) {
+              stampEl.setAttribute("datetime", response.updatedAt);
+              stampEl.textContent = response.updatedAtText;
+              applyLocalStamp(stampEl);
+            }
+          } else if (response && response.error) {
+            showMessage(response.error);
+          }
+
+          finish();
+        };
+
+        xhr.onerror = finish;
+        xhr.ontimeout = finish;
+        xhr.onabort = finish;
+
+        var formData = new FormData();
+        formData.append("file", file);
+        xhr.send(formData);
+      });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initTheme();
     initProfilePanel();
@@ -710,6 +856,7 @@
     initDropArea();
     initEntryChoice();
     initRowMenu();
+    initRowUpload();
     initLocalStamps();
   });
 })();

@@ -48,7 +48,14 @@ a {
   color: var(--accent-ink);
 }
 
-a:hover {
+/* Links only. The three button-shaped elements in this interface are <a>, not
+   <button> (they navigate), and this rule outranks the colour they set on
+   themselves — `a:hover` is (0,1,1), a bare `.some-button` is (0,1,0). Without
+   the exclusion the accent hover colour wins over the button's own text
+   colour, and on .primary-button that colour is also its hover *background*,
+   so the label disappears. The design system changes only the ground on a
+   button's hover, never the text. */
+a:not(.primary-button, .another-button, .cancel-button):hover {
   color: var(--accent-hover);
 }
 
@@ -1263,11 +1270,72 @@ h1 {
    always last — written literally, this story's last item would draw a
    hairline directly on the menu's own border, so the pattern is "a rule
    between items, none after the last" rather than a literal copy of every
-   item's own rule. */
-.handout-row-menu-item:last-child {
+   item's own rule. `:last-of-type`, not `:last-child`: the upload item's
+   own `input[type=file]` (HandoutZeile.dc.html) sits right after it in the
+   DOM, so it — not the upload button — is the menu's actual last child.
+   `:last-of-type` looks at siblings sharing the button's own tag, so the
+   trailing, differently-tagged input does not count and the last button
+   still loses its border-bottom, protected row or open. */
+.handout-row-menu-item:last-of-type {
   border-bottom: 0;
 }
 
 .handout-row-menu-item:hover {
   background: var(--paper-sunken);
+}
+
+/* HandoutZeile.dc.html, the input[type=file] right after the upload menu
+   item — out of the tab order and invisible, triggered by the item's own
+   click, the same construction the drop area's own file input uses
+   (designsystem-progress-and-error.excerpt.html, section "Umrissenes
+   Feld"). */
+.handout-row-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* HandoutZeile.dc.html, the `sc-if isUploading` block — NOT the same panel
+   as .upload-phase/.upload-box (the new-handout screen's own progress
+   panel, padding:20px / max-width:560px). The row's says padding:12px 16px
+   and max-width:480px; do not merge the two. */
+.handout-row-upload {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  width: 100%;
+  max-width: 480px;
+}
+
+/* Reused deliberately, not redefined: HandoutZeile.dc.html's own values for
+   the bar are exactly .upload-row / .upload-track / .upload-fill, which
+   both design excerpts explicitly call identical between the row's panel
+   and the new-handout screen's own ("The bar itself … is the same in
+   both"). */
+
+/* The row's own refusal, in the slot the progress panel otherwise
+   occupies. The design has no picture of a refused row upload; this is the
+   design system's error form (designsystem-progress-and-error.excerpt.html,
+   section "Feld") applied to that slot — ✕ aria-hidden semibold, sentence
+   in --danger-ink, gap:6px. 15px, not the 13px the design system's own
+   example carries: that example sits in a field's hint slot, and the
+   excerpt says explicitly that a refusal standing on its own is 15px,
+   which this one does — it occupies the row's whole progress-panel slot,
+   not a field's hint line. margin-top:16px is that slot's own offset from
+   HandoutZeile.dc.html. */
+.handout-row-message {
+  margin-top: 16px;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 15px;
+  color: var(--danger-ink);
+}
+
+.handout-row-message-icon {
+  font-weight: var(--weight-semibold);
+  line-height: 1.5;
 }

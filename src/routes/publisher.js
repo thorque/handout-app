@@ -1,4 +1,5 @@
 import fsp from "node:fs/promises";
+import path from "node:path";
 import { requireUser } from "../session.js";
 import { handoutUrl } from "../host.js";
 import { claimAddress } from "../address.js";
@@ -6,7 +7,14 @@ import {
   acceptUpload,
   detectKind,
   materialise,
-  promoteToContent,
+  installFirstState,
+  readStatePointer,
+  writeStatePointer,
+  stageStateInto,
+  resolveState,
+  readMetaFrom,
+  pruneStates,
+  containerFor,
   removeStaging,
   removeContent,
   readPending,
@@ -27,6 +35,7 @@ import { renderDone } from "../views/done.js";
 import { renderError } from "../views/error.js";
 import { renderEntryChoice, renderRejected } from "../views/entry-choice.js";
 import { strings, t } from "../views/strings.js";
+import { utcStamp } from "../views/stamp.js";
 import { PASSWORD_MAX_LENGTH, suggestPassword } from "../password.js";
 
 async function readFirstBytes(filePath, length) {
@@ -122,7 +131,10 @@ async function publishStaged({
       ],
     );
     address = await claimAddress(client, result.rows[0].id);
-    await promoteToContent(config, stagingToken, address);
+    // installFirstState creates the address's container, stages the
+    // artifact into it as the one state it holds, then points at it — see
+    // docs/adr/0018-a-handout-serves-one-state-behind-a-pointer.md.
+    await installFirstState(config, stagingToken, address);
     await client.query("commit");
   } catch (err) {
     // The cleanup itself failing must never hide why the publish failed —
@@ -144,6 +156,96 @@ async function publishStaged({
   }
 
   return address;
+}
+
+// The transaction that replaces an already-published handout's live state
+// with a newly staged one — the update route and the entry-choice confirm
+// (once its address branch fires) both go through this and only this.
+// See docs/adr/0018-a-handout-serves-one-state-behind-a-pointer.md.
+async function swapState({
+  pool,
+  config,
+  request,
+  handoutId,
+  address,
+  stagingToken,
+}) {
+  // The last cheap place to catch a missing entry, exactly as publishStaged
+  // does for a first publish.
+  const stagingMeta = await readStagingMeta(config, stagingToken);
+  if (typeof stagingMeta.entry !== "string" || stagingMeta.entry === "") {
+    throw new Error(
+      "swapState called with no entry chosen for this staging directory",
+    );
+  }
+
+  // May be null on a legacy container that has never had a pointer of its
+  // own — the state directory the caller is about to replace is then the
+  // container itself, and there is nothing to write the pointer back to on
+  // failure, because there never was a pointer to begin with.
+  const previous = await readStatePointer(config, address);
+
+  const client = await pool.connect();
+  let updatedAt;
+  let staged = false;
+  let pointerMoved = false;
+  try {
+    await client.query("begin");
+    const result = await client.query(
+      "update handout set updated_at = now() where id = $1 returning updated_at",
+      [handoutId],
+    );
+    updatedAt = result.rows[0].updated_at;
+    // The filesystem work sits inside the transaction and before the commit
+    // for the same reason publishStaged's does: a commit that succeeded
+    // before a failing rename would leave the row claiming a state that was
+    // never installed.
+    await stageStateInto(config, address, stagingToken);
+    staged = true;
+    await writeStatePointer(config, address, stagingToken);
+    pointerMoved = true;
+    await client.query("commit");
+  } catch (err) {
+    // On any failure before the commit above returns: the pointer, if it
+    // was already moved, is written back to what it named before this
+    // attempt — a request holding it open then keeps seeing the state it
+    // always saw, and a request that has only resolved the pointer since is
+    // caught by resolveTarget's own single retry either way. `previous` can
+    // be null (a legacy container never had a pointer); nothing is written
+    // back then, and the legacy directory is still what resolveState falls
+    // back to. Each cleanup is logged rather than allowed to replace the
+    // original error, exactly as publishStaged's own unwind does.
+    if (pointerMoved && previous) {
+      await writeStatePointer(config, address, previous).catch((cleanupErr) =>
+        request.log.error(cleanupErr),
+      );
+    }
+    await client
+      .query("rollback")
+      .catch((cleanupErr) => request.log.error(cleanupErr));
+    if (staged) {
+      await fsp
+        .rm(path.join(containerFor(config, address), stagingToken), {
+          recursive: true,
+          force: true,
+        })
+        .catch((cleanupErr) => request.log.error(cleanupErr));
+    }
+    await removeStaging(config, stagingToken).catch((cleanupErr) =>
+      request.log.error(cleanupErr),
+    );
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  // Removes the state that was just replaced (and, on a legacy container,
+  // the old artifact's own files) — a failure here leaves disk behind and
+  // nothing else, because the pointer alone decides what is served from
+  // here on.
+  await pruneStates(config, address).catch((err) => request.log.error(err));
+
+  return updatedAt;
 }
 
 export default async function publisherRoutes(fastify) {
@@ -168,6 +270,10 @@ export default async function publisherRoutes(fastify) {
         updatedAt: row.updated_at,
         href,
         address: href.replace(/^https?:\/\//, ""),
+        // The bare address value, as it stands in the database and in the
+        // update route's own URL (POST /handouts/:address/state) — distinct
+        // from `address` above, which is the full host shown to the reader.
+        rawAddress: row.address,
       };
     });
 
@@ -419,6 +525,157 @@ export default async function publisherRoutes(fastify) {
     },
   );
 
+  // Uploads a new state onto an already-published handout, at the address
+  // it already has. Answers JSON only, on every path — the `⋯` menu that
+  // holds this action is rendered `hidden` and revealed by script
+  // (initRowMenu(), src/public/handout.js), so there is no no-JavaScript
+  // path into this route to serve a rendered HTML refusal to.
+  fastify.post(
+    "/handouts/:address/state",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      await sweepAbandoned(config).catch((err) => request.log.error(err));
+
+      const { address } = request.params;
+      const result = await pool.query(
+        `select h.id as id, h.title as title, h.owner as owner, h.password as password
+           from address a
+           join handout h on h.id = a.handout_id
+          where a.value = $1`,
+        [address],
+      );
+      const row = result.rows[0];
+      if (!row || row.owner !== request.user.sub) {
+        return reply.code(404).send({ error: strings["error.unknownAddress"] });
+      }
+
+      const contentLength = Number(request.headers["content-length"] || 0);
+      if (contentLength > config.maxUploadBytes) {
+        return reply.code(413).send({
+          error: t("error.tooLarge", {
+            limit: formatBytes(config.maxUploadBytes),
+          }),
+        });
+      }
+
+      let uploaded = null;
+      try {
+        const parts = request.parts({
+          limits: { fileSize: config.maxUploadBytes, files: 1 },
+        });
+        for await (const part of parts) {
+          if (part.type === "file") {
+            uploaded = await acceptUpload({
+              filename: part.filename,
+              stream: part.file,
+              config,
+            });
+            if (part.file.truncated) {
+              await fsp.rm(uploaded.path, { force: true });
+              return reply.code(413).send({
+                error: t("error.tooLarge", {
+                  limit: formatBytes(config.maxUploadBytes),
+                }),
+              });
+            }
+          }
+        }
+      } catch (err) {
+        if (err instanceof TooLargeError) {
+          if (uploaded) await fsp.rm(uploaded.path, { force: true });
+          return reply.code(413).send({
+            error: t("error.tooLarge", {
+              limit: formatBytes(config.maxUploadBytes),
+            }),
+          });
+        }
+        throw err;
+      }
+
+      if (!uploaded) {
+        return reply.code(415).send({ error: strings["error.unsupported"] });
+      }
+
+      let kind;
+      try {
+        const firstBytes = await readFirstBytes(uploaded.path, 8);
+        kind = detectKind(uploaded.filename, firstBytes);
+      } catch (err) {
+        await fsp.rm(uploaded.path, { force: true });
+        if (err instanceof UnsupportedError) {
+          return reply.code(415).send({ error: strings["error.unsupported"] });
+        }
+        throw err;
+      }
+
+      let materialised;
+      try {
+        materialised = await materialise({
+          kind,
+          sourcePath: uploaded.path,
+          filename: uploaded.filename,
+          config,
+        });
+      } catch (err) {
+        await fsp.rm(uploaded.path, { force: true });
+        if (err instanceof NoHtmlError) {
+          return reply.code(200).send({ location: "/handouts/rejected" });
+        }
+        if (err instanceof UnsafeZipError) {
+          return reply.code(422).send({ error: strings["error.unsafeZip"] });
+        }
+        throw err;
+      }
+      await fsp.rm(uploaded.path, { force: true });
+
+      if (materialised.entry === null) {
+        // Ambiguous — ADR 0020: the previous state's own entry is tried
+        // first, silently, before asking anything. Only a previous entry
+        // that is no longer among the new archive's candidates brings up
+        // the existing entry-choice screen.
+        const currentState = await resolveState(config, address);
+        const currentMeta = await readMetaFrom(currentState.dir);
+        const candidates = await stagingEntryCandidates(
+          config,
+          materialised.token,
+        );
+        if (currentMeta && candidates.includes(currentMeta.entry)) {
+          await setStagingEntry(config, materialised.token, currentMeta.entry);
+        } else {
+          // The `address` key is what marks this pending record an update
+          // rather than a first publish — the entry-choice confirm route
+          // reads it to decide which of the two it is finishing.
+          await writePending(config, materialised.token, {
+            owner: request.user.sub,
+            address,
+            title: row.title,
+            protect: !!row.password,
+            password: row.password,
+            filename: uploaded.filename,
+            createdAt: new Date().toISOString(),
+          });
+          return reply
+            .code(200)
+            .send({ location: `/handouts/entry/${materialised.token}` });
+        }
+      }
+
+      const updatedAt = await swapState({
+        pool,
+        config,
+        request,
+        handoutId: row.id,
+        address,
+        stagingToken: materialised.token,
+      });
+
+      return reply.code(200).send({
+        updatedAt: updatedAt.toISOString(),
+        updatedAtText: t("stamp.utc", { stamp: utcStamp(updatedAt) }),
+      });
+    },
+  );
+
   fastify.get(
     "/handouts/rejected",
     { preHandler: requireUser },
@@ -514,6 +771,48 @@ export default async function publisherRoutes(fastify) {
       }
 
       await setStagingEntry(config, stagingToken, entry);
+
+      // `pending.address` is what marks this record an update rather than a
+      // first publish (see the update route, POST /handouts/:address/state).
+      if (pending.address) {
+        const result = await pool.query(
+          "select h.id as id from address a join handout h on h.id = a.handout_id where a.value = $1 and h.owner = $2",
+          [pending.address, request.user.sub],
+        );
+        const row = result.rows[0];
+        if (!row) {
+          return reply
+            .code(404)
+            .header("content-type", "text/html; charset=utf-8")
+            .send(renderError({ message: strings["error.unknownAddress"] }));
+        }
+
+        const updatedAt = await swapState({
+          pool,
+          config,
+          request,
+          handoutId: row.id,
+          address: pending.address,
+          stagingToken,
+        });
+        await removePending(config, stagingToken).catch((err) =>
+          request.log.error(err),
+        );
+
+        // An update ends where the journey started — the dashboard, not the
+        // first-publish result page, whose "the address is permanent"
+        // sentence belongs to a first publish only.
+        const location = "/";
+        if (acceptsJson(request)) {
+          return reply.code(200).send({
+            location,
+            updatedAt: updatedAt.toISOString(),
+            updatedAtText: t("stamp.utc", { stamp: utcStamp(updatedAt) }),
+          });
+        }
+        return reply.code(303).header("location", location).send();
+      }
+
       const address = await publishStaged({
         pool,
         config,

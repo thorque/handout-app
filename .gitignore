@@ -5,10 +5,16 @@ node_modules/
 # The contents of data/, not the directory itself: git never descends into an
 # excluded directory, so `data/` would make the exception below unreachable.
 data/*
-# The exception. The sample archives are fixtures, not runtime state — one per
-# branch of the entry-file rule, used by hand and by integration tests. The
-# rest of data/ is content, staging and local scratch files and stays out.
-!data/testdata/
+# The exception. The sample files are material, not runtime state: one set for
+# trying the upload by hand, covering every shape the application accepts and
+# the one it refuses. The rest of data/ is content, staging and incoming and
+# stays out.
+!data/testfiles/
+# …except the two oversize files, which are hundreds of megabytes and have no
+# business in a repository. `python3 data/testfiles/build.py --large` writes
+# them whenever they are needed.
+data/testfiles/5-refused/too-large.html
+data/testfiles/5-refused/progress-300mb.html
 *.tgz
 
 # The container-wide gitignore excludes .monoceros/ everywhere (it means the

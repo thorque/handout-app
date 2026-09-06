@@ -111,6 +111,27 @@ export const AMBIGUOUS = buildZip([
   { name: "b.html", content: "<html><body>b</body></html>" },
 ]);
 
+// A second state for TWO_FILE_SITE's address: both files differ from it, so
+// a mixture of the two is visible in either.
+export const SECOND_STATE = buildZip([
+  { name: "index.html", content: "<html><body>Second state</body></html>" },
+  { name: "assets/app.css", content: "body { color: blue; }" },
+]);
+
+// An update onto a handout whose entry was chosen as a.html on AMBIGUOUS —
+// still ambiguous, and a.html is still among its candidates (docs/adr/0020).
+export const AMBIGUOUS_KEEPING_A = buildZip([
+  { name: "a.html", content: "<html><body>a, updated</body></html>" },
+  { name: "c.html", content: "<html><body>c</body></html>" },
+]);
+
+// The same situation, but the previous entry (a.html) is gone — the
+// publisher has to be asked again (docs/adr/0020).
+export const AMBIGUOUS_WITHOUT_A = buildZip([
+  { name: "b.html", content: "<html><body>b, updated</body></html>" },
+  { name: "c.html", content: "<html><body>c</body></html>" },
+]);
+
 // A real, minimal 1x1 PNG (not just bytes that merely look like one) — the
 // static route's content-type check follows every reference out of a page,
 // including an <img>, so the fixture has to decode.

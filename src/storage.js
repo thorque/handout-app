@@ -10,6 +10,11 @@ export class NoHtmlError extends Error {}
 export class UnsafeZipError extends Error {}
 
 const HANDOUT_META_FILE = ".handout";
+// The pointer to the state a handout's container currently serves — see
+// docs/adr/0018-a-handout-serves-one-state-behind-a-pointer.md. It lives
+// beside the state directories rather than inside one, so no request path
+// can ever reach it: the served root is always `content/<address>/<token>`.
+export const STATE_POINTER_FILE = ".handout-state";
 
 // See docs/adr/0012-choose-a-zips-entry-page-when-it-is-ambiguous.md — not an
 // environment variable: configuration in this project has no defaults
@@ -466,11 +471,128 @@ export async function stagingEntryCandidates(config, stagingToken) {
   return entryCandidatesFrom(names, meta.root);
 }
 
-export async function promoteToContent(config, stagingToken, address) {
+// The container a handout's states live under — not itself a state
+// directory, see docs/adr/0018-a-handout-serves-one-state-behind-a-pointer.md.
+export function containerFor(config, address) {
+  return path.join(paths(config).content, address);
+}
+
+// The token of the state a container currently serves, or `null` when there
+// is no pointer at all — either because the address does not exist, or
+// because it was written before this layout existed (the legacy on-disk
+// case, see ADR 0018). Every other read error propagates; only a missing
+// pointer file is a `null`.
+export async function readStatePointer(config, address) {
+  try {
+    const raw = await fsp.readFile(
+      path.join(containerFor(config, address), STATE_POINTER_FILE),
+      "utf8",
+    );
+    return raw.trim();
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+// The only function allowed to write the pointer. Atomic: write the token to
+// a uniquely-named file beside the pointer, then rename it onto the
+// pointer's own name — a rename onto an existing file, in the same
+// directory, is atomic on POSIX, so a reader never observes a
+// half-written pointer.
+export async function writeStatePointer(config, address, token) {
+  const container = containerFor(config, address);
+  const tmpPath = path.join(
+    container,
+    `${STATE_POINTER_FILE}.${randomBytes(8).toString("hex")}`,
+  );
+  await fsp.writeFile(tmpPath, token, "utf8");
+  await fsp.rename(tmpPath, path.join(container, STATE_POINTER_FILE));
+}
+
+// Resolves an address to the state directory a request should read from,
+// right now. With a pointer: the directory it names. Without one: the
+// container itself, which is what a handout written before this layout
+// existed looks like on disk (ADR 0018's legacy fallback). Never throws for
+// an address nothing was ever published under — the caller finds that out
+// from a missing `.handout`, exactly as before.
+export async function resolveState(config, address) {
+  const container = containerFor(config, address);
+  const pointerToken = await readStatePointer(config, address);
+  if (pointerToken) {
+    return { dir: path.join(container, pointerToken), id: pointerToken };
+  }
+  return { dir: container, id: address };
+}
+
+// readMeta's replacement: reads a state's own .handout rather than an
+// address's, since an address no longer names a single directory of
+// content on its own. `null` on ENOENT, as readMeta always was.
+export async function readMetaFrom(stateDir) {
+  try {
+    const raw = await fsp.readFile(
+      path.join(stateDir, HANDOUT_META_FILE),
+      "utf8",
+    );
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+// Moves a staging directory into an address's container, keyed by its own
+// staging token — which becomes the state's token. The staging token is
+// already 32 random hex characters, so it can never collide with an address
+// (10 characters, ADR 0001) or with the pointer file's own name. The state
+// is on disk after this call but served to nobody until the pointer names
+// it.
+export async function stageStateInto(config, address, stagingToken) {
   const dirs = paths(config);
-  const stagingDir = path.join(dirs.staging, stagingToken);
-  const contentDir = path.join(dirs.content, address);
-  await fsp.rename(stagingDir, contentDir);
+  await fsp.rename(
+    path.join(dirs.staging, stagingToken),
+    path.join(containerFor(config, address), stagingToken),
+  );
+}
+
+// A first publish: creates the container (must not yet exist — `mkdir`
+// without `recursive`, so a colliding address throws exactly as
+// `promoteToContent`'s rename onto an existing path used to), stages the
+// state into it, then points at it. Replaces `promoteToContent`.
+export async function installFirstState(config, stagingToken, address) {
+  await fsp.mkdir(containerFor(config, address));
+  await stageStateInto(config, address, stagingToken);
+  await writeStatePointer(config, address, stagingToken);
+}
+
+// Removes every entry in an address's container except the pointer file and
+// the state directory the pointer currently names — re-reading the pointer
+// at the moment it runs, which is what keeps two concurrent uploads to the
+// same address from deleting each other's live state: whichever finished
+// last is the one this sees and keeps. A failure on a single entry is
+// swallowed, exactly as sweepAbandoned already does — a stray directory left
+// behind is cleaned up by the next update of this same handout, never worth
+// failing the request that just succeeded.
+export async function pruneStates(config, address) {
+  const container = containerFor(config, address);
+  const current = await readStatePointer(config, address);
+  let entries;
+  try {
+    entries = await fsp.readdir(container);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (name === STATE_POINTER_FILE || name === current) continue;
+    try {
+      await fsp.rm(path.join(container, name), {
+        recursive: true,
+        force: true,
+      });
+    } catch {
+      // A single stale or already-removed entry must never stop the prune.
+    }
+  }
 }
 
 export async function removeStaging(config, stagingToken) {
@@ -487,24 +609,6 @@ export async function removeContent(config, address) {
     recursive: true,
     force: true,
   });
-}
-
-export async function readMeta(config, address) {
-  const dirs = paths(config);
-  try {
-    const raw = await fsp.readFile(
-      path.join(dirs.content, address, HANDOUT_META_FILE),
-      "utf8",
-    );
-    return JSON.parse(raw);
-  } catch (err) {
-    if (err.code === "ENOENT") return null;
-    throw err;
-  }
-}
-
-export function contentDirFor(config, address) {
-  return path.join(paths(config).content, address);
 }
 
 // The pending publish — title, protect flag, password, owner and filename —

@@ -17,10 +17,11 @@
       "enabled": true,
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://handout-caddy.localhost/##http://handout.localhost/##http://handout.localhost:81/##http://localhost:3000/"
+        "post.logout.redirect.uris": "http://handout-caddy.localhost/##http://handout-3000.localhost/##http://handout.localhost/##http://handout.localhost:81/##http://localhost:3000/"
       },
       "redirectUris": [
         "http://handout-caddy.localhost/auth/callback",
+        "http://handout-3000.localhost/auth/callback",
         "http://handout.localhost/auth/callback",
         "http://handout.localhost:81/auth/callback",
         "http://localhost:3000/auth/callback"

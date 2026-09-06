@@ -48,7 +48,14 @@ a {
   color: var(--accent-ink);
 }
 
-a:hover {
+/* Links only. The three button-shaped elements in this interface are <a>, not
+   <button> (they navigate), and this rule outranks the colour they set on
+   themselves — `a:hover` is (0,1,1), a bare `.some-button` is (0,1,0). Without
+   the exclusion the accent hover colour wins over the button's own text
+   colour, and on .primary-button that colour is also its hover *background*,
+   so the label disappears. The design system changes only the ground on a
+   button's hover, never the text. */
+a:not(.primary-button, .another-button, .cancel-button):hover {
   color: var(--accent-hover);
 }
 

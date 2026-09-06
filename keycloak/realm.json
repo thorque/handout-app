@@ -30,12 +30,29 @@
   ],
   "users": [
     {
+      "id": "5d2c31e3-07fb-453a-b85e-2d499cb7f691",
       "username": "miriam",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Miriam",
       "lastName": "Publisher",
       "email": "miriam@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "handout",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "4ba2344b-2b59-4bec-9ad6-b76edec7c0e9",
+      "username": "joerg",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Joerg",
+      "lastName": "Publisher",
+      "email": "joerg@example.invalid",
       "credentials": [
         {
           "type": "password",

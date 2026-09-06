@@ -353,7 +353,7 @@ test("GET /handouts/entry/<unknown token> is 404 with error.uploadGone, and so i
   }
 });
 
-test("cancel on the entry-choice screen removes the staging directory and the pending record, and lands on /handouts/new", async () => {
+test("cancel on the entry-choice screen removes the staging directory and the pending record, and lands on /", async () => {
   const t = await buildTestServer();
   try {
     const { token, cookie } = await publishAmbiguous(t, { title: "Cancel" });
@@ -369,7 +369,7 @@ test("cancel on the entry-choice screen removes the staging directory and the pe
     });
     assert.strictEqual(res.status, 200);
     const json = await res.json();
-    assert.strictEqual(json.location, "/handouts/new");
+    assert.strictEqual(json.location, "/");
 
     assert.strictEqual(await readPending(t.config, token), null);
     const stagingDirs = await fs.readdir(paths(t.config).staging);
@@ -412,7 +412,12 @@ test("a zip with no HTML file lands on the rejected screen, which carries error.
     assert.strictEqual(rejectedRes.status, 200);
     const html = await rejectedRes.text();
     assert.ok(html.includes(strings["error.noHtml"]));
-    assert.match(html, /<a class="another-button" href="\/handouts\/new">/);
+    assert.match(
+      html,
+      /<a class="another-button done-action" href="\/handouts\/new">/,
+    );
+    // A cancel beside it, to the dashboard — added by the amendment.
+    assert.match(html, /<a class="cancel-button" href="\/">/);
   } finally {
     await t.close();
   }

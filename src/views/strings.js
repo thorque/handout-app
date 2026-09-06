@@ -25,6 +25,13 @@ export const strings = {
   "publish.ready": "Publish",
   "publish.noFile": "Publish (no file)",
   "publish.noTitle": "Publish (no title)",
+  // form.cancel, upload.cancel, rejected.cancel and entry.cancel are all
+  // "Cancel" — one value, four keys, on purpose and consistent with the
+  // rest of this module: the prefix names the screen throughout (form.,
+  // drop., entry., done., dash., row.), so a later wording change on one
+  // screen must not silently move the others.
+  "form.cancel": "Cancel",
+  "upload.cancel": "Cancel",
 
   // form phase — the protect option
   "form.protectLabel": "Protect with a password",
@@ -123,6 +130,7 @@ export const strings = {
   // rejected phase — a zip with no HTML file at all
   "rejected.lead": "The zip has arrived but cannot be published.",
   "rejected.chooseAnother": "Choose a different file",
+  "rejected.cancel": "Cancel",
 
   // refusals
   "error.tooLargeClient":

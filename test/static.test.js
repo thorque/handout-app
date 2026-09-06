@@ -52,13 +52,22 @@ function classOfElementWrapping(html, marker) {
   return bestClass;
 }
 
+// Only asset-shaped references (a recognisable extension): a page link to
+// a route (e.g. the cancel handle's href="/", added by the amendment) is
+// not an asset, and contentTypeFor() only has a meaningful answer for the
+// latter. This is the check that would catch a stylesheet or script the
+// page references but the server does not serve.
 function extractLocalReferences(html) {
   const refs = new Set();
   const attrPattern = /(?:href|src)="([^"]+)"/g;
   let match;
   while ((match = attrPattern.exec(html))) {
     const value = match[1];
-    if (value.startsWith("/") && !value.startsWith("//")) {
+    if (
+      value.startsWith("/") &&
+      !value.startsWith("//") &&
+      /\.[a-z0-9]+$/i.test(value)
+    ) {
       refs.add(value);
     }
   }
@@ -131,6 +140,52 @@ test("GET /handouts/new carries a real focusable choose-file button and a hidden
     });
     const css = await cssRes.text();
     assert.match(css, /:focus-visible\s*\{[^}]*outline:/);
+  } finally {
+    await t.close();
+  }
+});
+
+test("GET /handouts/new carries a cancel handle to / beside Publish, and a hidden transfer-phase cancel", async () => {
+  const t = await buildTestServer();
+  try {
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
+    const res = await fetch(`${t.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
+    const html = await res.text();
+
+    // The form-phase cancel: an <a>, not a button, so it works without
+    // JavaScript and never submits the form.
+    assert.match(html, /<a class="cancel-button" href="\/" data-form-cancel>/);
+
+    // The transfer-phase cancel has no no-JavaScript equivalent (aborting
+    // an in-flight request needs a script), so it is rendered hidden — the
+    // abort itself is client behaviour with no DOM harness in this
+    // project; asserting that /static/handout.js actually wires it is the
+    // other half, covered separately below.
+    const uploadCancelTag = /<button[^>]*data-upload-cancel[^>]*>/.exec(
+      html,
+    )[0];
+    assert.match(uploadCancelTag, /\bhidden\b/);
+    assert.match(uploadCancelTag, /class="cancel-button upload-cancel-button"/);
+  } finally {
+    await t.close();
+  }
+});
+
+test("handout.js wires the transfer-phase cancel to abort and navigate to /", async () => {
+  const t = await buildTestServer();
+  try {
+    const res = await fetch(`${t.baseUrl}/static/handout.js`);
+    assert.strictEqual(res.status, 200);
+    const js = await res.text();
+    assert.ok(js.includes('querySelector("[data-upload-cancel]")'));
+    assert.ok(js.includes("activeXhr.abort()"));
+    assert.ok(js.includes('window.location.assign("/")'));
   } finally {
     await t.close();
   }
@@ -240,14 +295,15 @@ test("every element toggled with the hidden attribute actually stays hidden", as
     });
     const html = await res.text();
 
-    // The four elements toggled with `hidden` on this page today:
-    // [data-drop-filled], [data-drop-message], [data-upload-box] and
-    // [data-profile-panel]. Enumerated from the rendered markup rather than
-    // hard-coded, so this still holds when a fifth is added.
+    // The five elements toggled with `hidden` on this page today:
+    // [data-drop-filled], [data-drop-message], [data-upload-box],
+    // [data-upload-cancel] and [data-profile-panel]. Enumerated from the
+    // rendered markup rather than hard-coded, so this still holds when a
+    // sixth is added.
     const hiddenElements = findHiddenElements(html);
     assert.ok(
-      hiddenElements.length >= 4,
-      `expected at least 4 elements carrying the hidden attribute, found ${hiddenElements.length}`,
+      hiddenElements.length >= 5,
+      `expected at least 5 elements carrying the hidden attribute, found ${hiddenElements.length}`,
     );
 
     const cssRes = await fetch(`${t.baseUrl}/static/handout.css`, {

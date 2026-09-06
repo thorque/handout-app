@@ -310,6 +310,7 @@
     var passwordInput = form.querySelector("#password");
     var suggestButton = form.querySelector("[data-suggest-password]");
     var publishButton = form.querySelector("[data-publish-button]");
+    var formCancel = form.querySelector("[data-form-cancel]");
     var uploadBox = form.querySelector("[data-upload-box]");
     var uploadFile = uploadBox
       ? uploadBox.querySelector("[data-upload-file]")
@@ -319,6 +320,9 @@
       : null;
     var uploadFill = uploadBox
       ? uploadBox.querySelector("[data-upload-fill]")
+      : null;
+    var uploadCancelButton = uploadBox
+      ? uploadBox.querySelector("[data-upload-cancel]")
       : null;
 
     var maxUploadBytes = Number(dropArea.getAttribute("data-max-upload-bytes"));
@@ -498,12 +502,30 @@
       });
     }
 
+    // Tracks the in-flight upload, if any, so the transfer-phase cancel
+    // button — wired once, below, not once per submit — always aborts the
+    // right request regardless of how many times the form was submitted
+    // before it.
+    var activeXhr = null;
+
+    if (uploadCancelButton) {
+      uploadCancelButton.addEventListener("click", function () {
+        if (activeXhr) activeXhr.abort();
+        // Navigate straight away rather than relying on xhr.onabort: that
+        // handler exists to restore the form after an abort from
+        // elsewhere, and running it here first would only flash the form
+        // back before the navigation replaces it anyway.
+        window.location.assign("/");
+      });
+    }
+
     form.addEventListener("submit", function (event) {
       if (!window.XMLHttpRequest || !selectedFile) return;
       event.preventDefault();
 
       var formData = new FormData(form);
       var xhr = new XMLHttpRequest();
+      activeXhr = xhr;
       xhr.open("POST", form.action, true);
       xhr.setRequestHeader("Accept", "application/json");
 
@@ -524,12 +546,18 @@
       dropArea.hidden = true;
       if (fieldBlock) fieldBlock.hidden = true;
       publishButton.hidden = true;
+      // The form-phase cancel sits right next to the Publish button, which
+      // is hidden for the duration of the transfer — hide this one with
+      // it, or the page shows two cancel handles at once (this one and
+      // the transfer-phase one below).
+      if (formCancel) formCancel.hidden = true;
       if (uploadBox) {
         uploadBox.hidden = false;
         if (uploadFile)
           uploadFile.textContent =
             selectedFile.name + " · " + formatBytes(selectedFile.size);
       }
+      if (uploadCancelButton) uploadCancelButton.hidden = false;
 
       // Every terminal outcome — success, refusal, a transport error, a
       // timeout, an abort — closes the progress box, brings the drop area,
@@ -542,10 +570,13 @@
       // finishUpload is what makes it visible again, framed and carrying
       // the message in the same slot the publisher was just watching.
       function finishUpload() {
+        activeXhr = null;
+        if (uploadCancelButton) uploadCancelButton.hidden = true;
         if (uploadBox) uploadBox.hidden = true;
         dropArea.hidden = false;
         if (fieldBlock) fieldBlock.hidden = false;
         publishButton.hidden = false;
+        if (formCancel) formCancel.hidden = false;
         updatePublishButton();
       }
 

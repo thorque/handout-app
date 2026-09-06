@@ -460,6 +460,23 @@ h1 {
   cursor: not-allowed;
 }
 
+/* The publish button's own row, since it gained a cancel handle beside it
+   (prototype-cancel.excerpt.html block A). */
+.form-actions {
+  margin-top: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+/* .publish-button carries its own margin-top, which would stack a second
+   gap on top of .form-actions' own — same precedent as
+   .entry-publish-button and .done-action. */
+.form-publish-button {
+  margin-top: 0;
+}
+
 /* Uploading phase */
 
 /* The prototype wraps the whole uploading phase (heading, box, footnote) at
@@ -497,6 +514,13 @@ h1 {
   height: 100%;
   width: 0%;
   background: var(--accent);
+}
+
+/* Not in the design (see the button's own markup comment) — placed where
+   the prototype's unrendered footnote paragraph sits, hence its top
+   margin (16px, var(--space-4)) rather than a paragraph's. */
+.upload-cancel-button {
+  margin-top: var(--space-4);
 }
 
 /* Result phase (Kopierfeld) */
@@ -905,8 +929,18 @@ h1 {
   margin-top: 0;
 }
 
-.entry-cancel-button {
+/* Shared by every cancel handle in the "New handout" flow (the form, the
+   transfer, the entry choice, the rejected screen) — one class, one set of
+   values, from prototype-cancel.excerpt.html block A/B (byte-for-byte the
+   same button in both). It also carries the link treatment
+   .another-button uses for the same reason (display, line-height,
+   text-decoration, color): two of its four uses are an <a>, not a
+   <button>, and a link must work without JavaScript and must not submit
+   the form it sits in. */
+.cancel-button {
+  display: inline-block;
   height: var(--control-height);
+  line-height: calc(var(--control-height) - 2px);
   padding: 0 20px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -914,9 +948,10 @@ h1 {
   font-weight: var(--weight-semibold);
   cursor: pointer;
   color: var(--ink);
+  text-decoration: none;
 }
 
-.entry-cancel-button:hover {
+.cancel-button:hover {
   background: var(--paper-sunken);
 }
 

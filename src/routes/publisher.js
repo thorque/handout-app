@@ -463,9 +463,9 @@ export default async function publisherRoutes(fastify) {
       if (body.cancel) {
         await removeStaging(config, stagingToken);
         await removePending(config, stagingToken);
-        // Cancelling discards this upload; the publisher's next move is a
-        // different file, so this leads back to the form, not the list.
-        const location = "/handouts/new";
+        // Abandoning a flow in any phase goes back to the dashboard —
+        // nothing was published, and there is nothing left to resume.
+        const location = "/";
         if (acceptsJson(request)) {
           return reply.code(200).send({ location });
         }

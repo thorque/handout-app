@@ -17,7 +17,7 @@
       "enabled": true,
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "+"
+        "post.logout.redirect.uris": "http://handout-caddy.localhost/##http://handout.localhost/##http://handout.localhost:81/##http://localhost:3000/"
       },
       "redirectUris": [
         "http://handout-caddy.localhost/auth/callback",

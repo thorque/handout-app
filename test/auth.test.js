@@ -141,7 +141,43 @@ test("the callback with a mismatched state is 400 and sets no session", async ()
   }
 });
 
-test("POST /auth/logout clears the session cookie", async () => {
+test("POST /auth/logout clears the session cookie and ends the session at the provider", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const cookie = t2.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+      idToken: "the.id.token",
+    });
+    const res = await fetch(`${t2.baseUrl}/auth/logout`, {
+      method: "POST",
+      headers: { cookie },
+      redirect: "manual",
+    });
+    assert.strictEqual(res.status, 302);
+    const cleared = res.headers.get("set-cookie");
+    assert.match(cleared, /handout_session=;/);
+
+    // Clearing the cookie alone would leave the provider's own session
+    // standing, and the next request would be signed straight back in
+    // without a login screen — docs/adr/0016.
+    const target = new URL(res.headers.get("location"));
+    assert.strictEqual(target.pathname, "/logout");
+    assert.strictEqual(
+      target.searchParams.get("id_token_hint"),
+      "the.id.token",
+    );
+    assert.strictEqual(
+      target.searchParams.get("post_logout_redirect_uri"),
+      `${t2.baseUrl}/`,
+    );
+  } finally {
+    await t2.close();
+  }
+});
+
+test("a session cookie from before the ID token was kept still signs out, naming the client instead", async () => {
   const t2 = await buildTestServer();
   try {
     const cookie = t2.signSession({
@@ -155,8 +191,49 @@ test("POST /auth/logout clears the session cookie", async () => {
       redirect: "manual",
     });
     assert.strictEqual(res.status, 302);
-    const cleared = res.headers.get("set-cookie");
-    assert.match(cleared, /handout_session=;/);
+
+    const target = new URL(res.headers.get("location"));
+    assert.strictEqual(target.pathname, "/logout");
+    assert.strictEqual(target.searchParams.get("id_token_hint"), null);
+    assert.ok(target.searchParams.get("client_id"));
+  } finally {
+    await t2.close();
+  }
+});
+
+test("the sign-in keeps the ID token in the session, so signing out can name it", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, {
+      redirect: "manual",
+    });
+    const oidcCookie = cookieValue(
+      loginRes.headers.get("set-cookie"),
+      "handout_oidc",
+    );
+    const authRes = await fetch(loginRes.headers.get("location"), {
+      redirect: "manual",
+    });
+    const callbackRes = await fetch(authRes.headers.get("location"), {
+      headers: { cookie: oidcCookie },
+      redirect: "manual",
+    });
+    const sessionCookie = cookieValue(
+      callbackRes.headers.get("set-cookie"),
+      "handout_session",
+    );
+
+    const logoutRes = await fetch(`${t2.baseUrl}/auth/logout`, {
+      method: "POST",
+      headers: { cookie: sessionCookie },
+      redirect: "manual",
+    });
+    const hint = new URL(logoutRes.headers.get("location")).searchParams.get(
+      "id_token_hint",
+    );
+    // Three dot-separated parts: what the provider actually issued, not a
+    // placeholder this test could have written itself.
+    assert.ok(hint && hint.split(".").length === 3, "expected a real ID token");
   } finally {
     await t2.close();
   }

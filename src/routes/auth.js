@@ -4,6 +4,7 @@ import {
   writeOidcState,
   readOidcState,
   clearOidcState,
+  readSession,
   writeSession,
   clearSession,
 } from "../session.js";
@@ -64,10 +65,16 @@ export default async function authRoutes(fastify) {
     }
 
     const claims = tokens.claims();
+    // The ID token travels in the session cookie for exactly one purpose: it
+    // is what the provider wants back as `id_token_hint` when the session is
+    // ended, and without it signing out cannot be silent. Nothing reads it as
+    // a token — the claims above are the session, see
+    // docs/adr/0016-signing-out-ends-the-session-at-the-provider.md.
     writeSession(reply, config, {
       sub: claims.sub,
       name: claims.name || "",
       email: claims.email || "",
+      idToken: tokens.id_token,
     });
 
     return reply.redirect(
@@ -75,8 +82,37 @@ export default async function authRoutes(fastify) {
     );
   });
 
+  // Clearing Handout's own cookie is not signing out: the provider still
+  // holds its session, so the next request walks through /auth/login and is
+  // signed straight back in without ever showing a login screen. The visible
+  // effect is a "Sign out" that does nothing, and it is worst where it
+  // matters most — two people sharing a machine, or one person checking what
+  // a colleague can see. So the cookie is cleared AND the provider is asked
+  // to end its own session (RP-initiated logout).
   fastify.post("/auth/logout", async (request, reply) => {
+    const session = readSession(request, config);
     clearSession(reply);
-    return reply.redirect("/");
+
+    const endSessionEndpoint =
+      oidcConfig.serverMetadata().end_session_endpoint || null;
+    // A provider that does not offer the endpoint at all leaves nothing to
+    // ask; clearing the cookie is then all a client can do, and pretending
+    // otherwise would be a redirect to nowhere.
+    if (!endSessionEndpoint) return reply.redirect("/");
+
+    // `id_token_hint` names the session to end, which is what lets the
+    // provider act without asking the person to confirm. A session cookie
+    // written before this existed carries no ID token; `client_id` is the
+    // documented stand-in, and the provider then asks for confirmation
+    // rather than refusing.
+    const parameters = {
+      post_logout_redirect_uri: `${requestOrigin(request)}/`,
+    };
+    if (session && session.idToken) parameters.id_token_hint = session.idToken;
+    else parameters.client_id = config.oidcClientId;
+
+    return reply.redirect(
+      openid.buildEndSessionUrl(oidcConfig, parameters).href,
+    );
   });
 }

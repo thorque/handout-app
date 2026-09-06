@@ -67,8 +67,13 @@ async function resolveInState(state, meta, url) {
   const decoded = decodeURIComponent(rawPath);
   const relative = decoded === "/" ? meta.entry : decoded.replace(/^\//, "");
 
+  // ADR 0003's exact ".handout" and ADR 0018's exact ".handout-state" widen
+  // to the whole ".handout" prefix here (docs/adr/0021): a live state's
+  // .handout is rewritten in place through a `.handout.<random>` sibling
+  // (setStateEntry), and that sibling sits inside the very directory served
+  // as root when `root` is `""` — it must never be reachable while it lives.
   const base = path.basename(relative);
-  if (base === ".handout" || base === ".handout-state") {
+  if (base.startsWith(".handout")) {
     return null;
   }
 

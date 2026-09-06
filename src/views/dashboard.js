@@ -42,7 +42,7 @@ function badge(protect) {
 // picker triggered by script), so the toggle is revealed only once the
 // script has wired the menu up (initRowMenu() in src/public/handout.js) —
 // the same treatment the combined handle on the result page gets.
-function rowMenu({ address, href, password }) {
+function rowMenu({ address, href, password, canChangeEntry }) {
   const menuId = `row-menu-${address}`;
   const messageValue = esc(messageText(href, password)).replace(/\n/g, "&#10;");
 
@@ -80,6 +80,16 @@ function rowMenu({ address, href, password }) {
         >${esc(strings["row.copyPassword"])}</button>`
             : ""
         }
+        ${
+          canChangeEntry
+            ? `<button
+          type="button"
+          role="menuitem"
+          class="handout-row-menu-item"
+          data-row-entry-item
+        >${esc(strings["row.changeEntry"])}</button>`
+            : ""
+        }
         <button
           type="button"
           role="menuitem"
@@ -97,10 +107,70 @@ function rowMenu({ address, href, password }) {
       </div>`;
 }
 
-function row({ title, address, rawAddress, href, password, updatedAt }) {
+// The row's inline "change the entry page" panel — skeleton only, rendered
+// hidden. The list of radio rows is not rendered here at all: it is fetched
+// when the panel opens (docs/adr/0021), so the markup per row stays constant
+// regardless of how many pages the archive holds. Only rendered when
+// canChangeEntry, exactly like the menu item above.
+function entryPanel(rawAddress) {
+  const group = `entry-${rawAddress}`;
+  const filterId = `${group}-filter`;
+
+  return `<div class="handout-row-entry" data-row-entry-panel hidden>
+    <fieldset class="handout-row-entry-fieldset">
+      <legend>${esc(strings["row.entryLegend"])}</legend>
+      <p
+        class="handout-row-entry-description"
+        data-row-entry-description
+        data-template-current="${esc(strings["row.entryDescription"])}"
+        data-template-none="${esc(strings["row.entryDescriptionNone"])}"
+      ></p>
+      <div class="handout-row-entry-filter" hidden data-row-entry-filter>
+        <label for="${esc(filterId)}">${esc(strings["row.entryFilterLabel"])}</label>
+        <input
+          type="search"
+          id="${esc(filterId)}"
+          placeholder="${esc(strings["row.entryFilterPlaceholder"])}"
+          data-row-entry-filter-input
+        >
+        <span
+          data-row-entry-filter-count
+          data-template-all="${esc(strings["row.entryFilterCountAll"])}"
+          data-template-some="${esc(strings["row.entryFilterCountSome"])}"
+          data-template-some-pinned="${esc(strings["row.entryFilterCountSomePinned"])}"
+        ></span>
+      </div>
+      <div class="handout-row-entry-list" data-row-entry-list>
+        <p class="handout-row-entry-no-match" hidden data-row-entry-no-match>${esc(strings["row.entryNoMatch"])}</p>
+      </div>
+    </fieldset>
+    <p class="handout-row-entry-note">${esc(strings["row.entryNote"])}</p>
+    <div class="handout-row-entry-actions">
+      <button
+        type="button"
+        class="handout-row-entry-save"
+        data-row-entry-save
+        disabled
+        data-label-ready="${esc(strings["row.entrySave"])}"
+        data-label-unchanged="${esc(strings["row.entrySaveUnchanged"])}"
+      >${esc(strings["row.entrySaveUnchanged"])}</button>
+      <button type="button" class="handout-row-entry-cancel" data-row-entry-cancel>${esc(strings["row.entryCancel"])}</button>
+    </div>
+  </div>`;
+}
+
+function row({
+  title,
+  address,
+  rawAddress,
+  href,
+  password,
+  updatedAt,
+  canChangeEntry,
+}) {
   const reserves = reserveSpans(ADDRESS_RESERVED_LABELS);
 
-  return `<div class="handout-row" data-handout-row data-upload-url="/handouts/${esc(rawAddress)}/state">
+  return `<div class="handout-row" data-handout-row data-upload-url="/handouts/${esc(rawAddress)}/state" data-entry-url="/handouts/${esc(rawAddress)}/entry">
   <div class="handout-row-inner">
     <div class="handout-row-main">
       <span class="handout-row-title">${esc(title)}</span>
@@ -123,13 +193,14 @@ function row({ title, address, rawAddress, href, password, updatedAt }) {
         <span class="copy-field-button-label" data-copy-label>${esc(strings["row.copyAddress"])}</span>
         ${reserves}
       </span></button>
-      ${rowMenu({ address, href, password })}
+      ${rowMenu({ address, href, password, canChangeEntry })}
     </div>
   </div>
   <div class="handout-row-upload" data-row-upload-box hidden>
     <div class="upload-row"><span data-row-upload-file></span><span data-row-upload-percent>0 %</span></div>
     <div class="upload-track"><div class="upload-fill" data-row-upload-fill></div></div>
   </div>
+  ${canChangeEntry ? entryPanel(rawAddress) : ""}
   <div class="handout-row-message" data-row-upload-message hidden aria-live="polite"></div>
 </div>`;
 }
@@ -166,7 +237,9 @@ ${
   data-message-icon="${esc(strings["error.icon"])}"
 >
 ${handouts.map(row).join("\n")}
-</div>`;
+</div>
+
+<template data-row-entry-template><label class="handout-row-entry-row"><input type="radio"><span></span></label></template>`;
 
   return page({ title: "Handout", user, body, config });
 }

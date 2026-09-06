@@ -1339,3 +1339,161 @@ h1 {
   font-weight: var(--weight-semibold);
   line-height: 1.5;
 }
+
+/* The row's "change the entry page" panel — HandoutZeile.dc.html's
+   `sc-if isChangingEntry` block and, for the fieldset it embeds,
+   Startseitenauswahl.dc.html. Deliberately its own class set, sharing
+   nothing with the .entry-* block above: the user decided the publishing
+   screen above keeps its own values, and the component's current ones are
+   more compact (fieldset padding, list rows, list height) — see
+   docs/adr/0021. Per the file's own substitution rule,
+   only var(--text-sm), var(--weight-semibold), var(--radius-1),
+   var(--radius-2) and var(--control-height) stand in for the design's
+   literal values; everything else here is the literal px the design files
+   themselves write. */
+.handout-row-entry {
+  margin-top: 16px;
+  max-width: 560px;
+}
+
+.handout-row-entry-fieldset {
+  margin: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-2);
+}
+
+.handout-row-entry-fieldset legend {
+  padding: 0 6px;
+  font-size: 16px;
+  font-weight: var(--weight-semibold);
+}
+
+.handout-row-entry-description {
+  margin: 0 0 12px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.handout-row-entry-filter {
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.handout-row-entry-filter label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.handout-row-entry-filter input {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.handout-row-entry-filter span {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.handout-row-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 196px;
+  overflow-y: auto;
+}
+
+.handout-row-entry-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-1);
+  cursor: pointer;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 14px;
+}
+
+.handout-row-entry-row:hover {
+  background: var(--paper-sunken);
+}
+
+.handout-row-entry-row input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--accent-ink);
+}
+
+.handout-row-entry-row span {
+  overflow-wrap: anywhere;
+}
+
+.handout-row-entry-no-match {
+  margin: 0;
+  padding: 6px 8px;
+  font-size: 14px;
+  color: var(--ink-muted);
+}
+
+.handout-row-entry-note {
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.handout-row-entry-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.handout-row-entry-save {
+  height: var(--control-height);
+  padding: 0 16px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+/* Not in HandoutZeile.dc.html, which gives this button no :hover — the
+   design system's "Knopf" section does, for the primary button, and states
+   are the design system's to decide (see docs/adr/0021). Its :active is
+   deliberately left out: no primary button in this codebase carries one
+   today, and adding it here alone would make this the odd one out. */
+.handout-row-entry-save:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.handout-row-entry-save:disabled {
+  background: var(--paper-sunken);
+  color: var(--line-strong);
+  border: 1px solid var(--line);
+  cursor: not-allowed;
+}
+
+.handout-row-entry-cancel {
+  height: var(--control-height);
+  padding: 0 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.handout-row-entry-cancel:hover {
+  background: var(--paper-sunken);
+}

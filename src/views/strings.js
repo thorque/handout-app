@@ -96,6 +96,27 @@ export const strings = {
   "row.bothCopied": "→ Address and password copied",
   "row.copyBothFailed": "Copying failed.",
   "row.uploadState": "Upload a new state",
+  // row.* repeats several entry.* values on purpose — the module's own rule
+  // above (the key prefix names the screen throughout) applies here too: the
+  // row panel is its own screen, so a later wording change to the
+  // entry-choice screen must not silently move this one's.
+  "row.changeEntry": "Change the entry page",
+  "row.entryLegend": "Which file is the entry page?",
+  "row.entryDescription":
+    "Currently: {entry}. Paths are relative to the root of the zip.",
+  "row.entryDescriptionNone": "Paths are relative to the root of the zip.",
+  "row.entryFilterLabel": "Filter by path",
+  "row.entryFilterPlaceholder": "chapter",
+  "row.entryFilterCountAll": "{total} HTML files",
+  "row.entryFilterCountSome": "{shown} of {total} HTML files",
+  "row.entryFilterCountSomePinned":
+    "{shown} of {total} HTML files, plus the selected one",
+  "row.entryNoMatch": "No path contains this text.",
+  "row.entryNote":
+    "The address and the password stay the same. Nothing is uploaded, and the time still names the last state.",
+  "row.entrySave": "Save",
+  "row.entrySaveUnchanged": "Save (no other page chosen)",
+  "row.entryCancel": "Cancel",
   "stamp.utc": "{stamp} UTC",
 
   // the message that goes into a mail or a chat — src/message.js composes it,
@@ -151,6 +172,8 @@ export const strings = {
   "error.passwordTooLong": "A password can be at most {limit} characters.",
   "error.passwordWrong": "The password is not right.",
   "error.unknownAddress": "This address does not exist.",
+  "error.entryStateMoved":
+    "This handout has been updated in the meantime. Reload the page and choose again.",
   "error.signInFailed": "The sign-in did not complete. Start it again.",
   "error.icon": "✕", // aria-hidden next to a refusal; the message already says it in words
 };

@@ -31,14 +31,15 @@ function badge(protect) {
   return `<span class="handout-row-badge handout-row-badge-open"><span class="handout-row-badge-mark handout-row-badge-mark-open" aria-hidden="true"></span>${esc(strings["row.open"])}</span>`;
 }
 
-// The `⋯` menu and its toggle — rendered only for a protected handout,
-// because the two items this story builds (the combined handle and the
-// password handle) are both password items, and a menu with nothing in it
-// would be worse than no menu at all. Everything else the design's menu
-// carries (upload a new state, change the entry page, reissue the
-// password, delete) belongs to later stories.
-// Rendered `hidden`: both items are clipboard-only and there is no
-// clipboard without JavaScript, so the toggle is revealed only once the
+// The `⋯` menu and its toggle — rendered on every row now, protected or
+// not: the design's list note says "Ohne Passwort fällt der Menüpunkt
+// „Passwort kopieren" weg" — without a password only that *item* drops
+// out, not the menu itself (designsystem-progress-and-error.excerpt.html,
+// section "Liste"). What made the menu password-only before this story was
+// that it held nothing else; this story is what first puts an item in it
+// that every row gets, protected or open.
+// Rendered `hidden`: every item in it is script-only (clipboard, or a file
+// picker triggered by script), so the toggle is revealed only once the
 // script has wired the menu up (initRowMenu() in src/public/handout.js) —
 // the same treatment the combined handle on the result page gets.
 function rowMenu({ address, href, password }) {
@@ -55,7 +56,9 @@ function rowMenu({ address, href, password }) {
         aria-controls="${esc(menuId)}"
       >⋯</button>
       <div class="handout-row-menu" id="${esc(menuId)}" role="menu" hidden data-row-menu>
-        <button
+        ${
+          password
+            ? `<button
           type="button"
           role="menuitem"
           class="handout-row-menu-item"
@@ -74,14 +77,30 @@ function rowMenu({ address, href, password }) {
           data-copied-label="${esc(strings["row.passwordCopied"])}"
           data-copy-failed-label="${esc(strings["row.copyPasswordFailed"])}"
           aria-live="polite"
-        >${esc(strings["row.copyPassword"])}</button>
+        >${esc(strings["row.copyPassword"])}</button>`
+            : ""
+        }
+        <button
+          type="button"
+          role="menuitem"
+          class="handout-row-menu-item"
+          data-row-upload
+        >${esc(strings["row.uploadState"])}</button>
+        <input
+          type="file"
+          id="row-upload-${esc(address)}"
+          class="handout-row-file-input"
+          tabindex="-1"
+          aria-hidden="true"
+          data-row-file-input
+        >
       </div>`;
 }
 
-function row({ title, address, href, password, updatedAt }) {
+function row({ title, address, rawAddress, href, password, updatedAt }) {
   const reserves = reserveSpans(ADDRESS_RESERVED_LABELS);
 
-  return `<div class="handout-row">
+  return `<div class="handout-row" data-handout-row data-upload-url="/handouts/${esc(rawAddress)}/state">
   <div class="handout-row-inner">
     <div class="handout-row-main">
       <span class="handout-row-title">${esc(title)}</span>
@@ -104,9 +123,14 @@ function row({ title, address, href, password, updatedAt }) {
         <span class="copy-field-button-label" data-copy-label>${esc(strings["row.copyAddress"])}</span>
         ${reserves}
       </span></button>
-      ${password ? rowMenu({ address, href, password }) : ""}
+      ${rowMenu({ address, href, password })}
     </div>
   </div>
+  <div class="handout-row-upload" data-row-upload-box hidden>
+    <div class="upload-row"><span data-row-upload-file></span><span data-row-upload-percent>0 %</span></div>
+    <div class="upload-track"><div class="upload-fill" data-row-upload-fill></div></div>
+  </div>
+  <div class="handout-row-message" data-row-upload-message hidden aria-live="polite"></div>
 </div>`;
 }
 
@@ -133,7 +157,14 @@ ${
     : ""
 }
 
-<div class="handout-list">
+<div
+  class="handout-list"
+  data-handout-list
+  data-max-upload-bytes="${config.maxUploadBytes}"
+  data-too-large="${esc(strings["error.tooLargeClient"])}"
+  data-unsupported="${esc(strings["error.unsupported"])}"
+  data-message-icon="${esc(strings["error.icon"])}"
+>
 ${handouts.map(row).join("\n")}
 </div>`;
 

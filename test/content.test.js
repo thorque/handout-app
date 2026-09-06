@@ -107,6 +107,44 @@ test("GET /assets/app.css on the address host serves the asset with the right ty
   }
 });
 
+test("a plain publish carries a strong ETag per file, and If-None-Match answers 304", async () => {
+  const t = await buildTestServer();
+  try {
+    const { address } = await publish(t);
+    const host = `${address}.handout.example.com`;
+
+    const root1 = await get(t.baseUrl, "/", { host });
+    assert.strictEqual(root1.status, 200);
+    const rootEtag = root1.headers.etag;
+    assert.ok(!rootEtag.startsWith("W/"));
+    assert.match(rootEtag, /^"[^"]+"$/);
+
+    const asset1 = await get(t.baseUrl, "/assets/app.css", { host });
+    assert.strictEqual(asset1.status, 200);
+    const assetEtag = asset1.headers.etag;
+    assert.ok(!assetEtag.startsWith("W/"));
+    assert.match(assetEtag, /^"[^"]+"$/);
+    assert.notStrictEqual(rootEtag, assetEtag);
+
+    const root2 = await get(t.baseUrl, "/", { host });
+    assert.strictEqual(root2.headers.etag, rootEtag);
+
+    const cached = await get(t.baseUrl, "/", {
+      host,
+      headers: { "if-none-match": rootEtag },
+    });
+    assert.strictEqual(cached.status, 304);
+    assert.strictEqual(cached.body.length, 0);
+    assert.strictEqual(
+      cached.headers["cache-control"],
+      root1.headers["cache-control"],
+    );
+    assert.strictEqual(cached.headers.etag, rootEtag);
+  } finally {
+    await t.close();
+  }
+});
+
 test("a wrapper-directory zip serves dist/index.html at / and dist/assets/app.css at /assets/app.css", async () => {
   const t = await buildTestServer();
   try {

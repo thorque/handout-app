@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildTestServer } from "./helpers/app.js";
 import { buildMultipart } from "./helpers/multipart.js";
 import { strings } from "../src/views/strings.js";
+import { esc } from "../src/views/layout.js";
 import { messageText } from "../src/message.js";
 import { contentTypeFor } from "../src/mime.js";
 import { TWO_FILE_SITE } from "./helpers/zip.js";
@@ -284,7 +285,7 @@ test("the copy-address handle carries the absolute address and both receipt labe
   }
 });
 
-test("the ⋯ menu holds exactly the two password items, and only for a protected handout", async () => {
+test("the ⋯ menu holds the password items only for a protected handout", async () => {
   const t = await buildTestServer();
   try {
     const { address: protectedAddress } = await publish(t, "u1", [
@@ -324,15 +325,18 @@ test("the ⋯ menu holds exactly the two password items, and only for a protecte
     );
     assert.ok(html.includes(`data-copy="barn-leaf-dove-945"`));
 
+    // Four menu items in total: the two password items plus the upload
+    // item on the protected row, and the upload item alone on the open row
+    // — every row carries the upload item now, protected or not.
     const menuItems = html.match(/role="menuitem"/g) || [];
-    assert.strictEqual(menuItems.length, 2);
+    assert.strictEqual(menuItems.length, 4);
     assert.ok(html.includes(protectedAddress));
   } finally {
     await t.close();
   }
 });
 
-test("an open handout on its own carries no ⋯ toggle and no password item", async () => {
+test("an open handout's ⋯ menu holds the upload item and no password item", async () => {
   const t = await buildTestServer();
   try {
     await publish(t, "u1", [
@@ -350,8 +354,52 @@ test("an open handout on its own carries no ⋯ toggle and no password item", as
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
-    assert.ok(!html.includes("data-row-menu-toggle"));
+    assert.ok(html.includes("data-row-menu-toggle"));
     assert.ok(!html.includes(strings["row.copyPassword"]));
+    assert.ok(!html.includes(strings["row.copyBoth"]));
+    assert.ok(html.includes(strings["row.uploadState"]));
+    const menuItems = html.match(/role="menuitem"/g) || [];
+    assert.strictEqual(menuItems.length, 1);
+  } finally {
+    await t.close();
+  }
+});
+
+test("every row carries the upload item, its file input and an upload URL", async () => {
+  const t = await buildTestServer();
+  try {
+    const { address } = await publish(t, "u1", [
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
+      { name: "title", value: "Upload Item" },
+    ]);
+
+    const cookie = sessionCookie(t);
+    const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
+    const html = await res.text();
+
+    assert.ok(html.includes(strings["row.uploadState"]));
+    assert.match(
+      html,
+      /<input[^>]*type="file"[^>]*tabindex="-1"[^>]*aria-hidden="true"[^>]*>/,
+    );
+    assert.ok(html.includes(`data-upload-url="/handouts/${address}/state"`));
+
+    assert.ok(html.includes('data-max-upload-bytes="'));
+    assert.ok(
+      html.includes(`data-too-large="${esc(strings["error.tooLargeClient"])}"`),
+    );
+    assert.ok(
+      html.includes(`data-unsupported="${esc(strings["error.unsupported"])}"`),
+    );
+    assert.ok(
+      html.includes(`data-message-icon="${esc(strings["error.icon"])}"`),
+    );
   } finally {
     await t.close();
   }

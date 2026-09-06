@@ -16,6 +16,7 @@ import {
   readPending,
   sweepAbandoned,
   ABANDONED_AFTER_MS,
+  resolveState,
 } from "../src/storage.js";
 import { MULTI_PAGE_EXPORT, MANY_PAGES, ENTRYLESS } from "./helpers/zip.js";
 
@@ -283,10 +284,8 @@ test("end-to-end: upload, choose the entry, publish, and every local reference o
       assert.strictEqual(refRes.headers["content-type"], contentTypeFor(ref));
     }
 
-    const metaRaw = await fs.readFile(
-      path.join(t.config.handoutDataDir, "content", address, ".handout"),
-      "utf8",
-    );
+    const state = await resolveState(t.config, address);
+    const metaRaw = await fs.readFile(path.join(state.dir, ".handout"), "utf8");
     const meta = JSON.parse(metaRaw);
     assert.deepStrictEqual(Object.keys(meta).sort(), [
       "entry",

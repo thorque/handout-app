@@ -460,6 +460,23 @@ h1 {
   cursor: not-allowed;
 }
 
+/* The publish button's own row, since it gained a cancel handle beside it
+   (prototype-cancel.excerpt.html block A). */
+.form-actions {
+  margin-top: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+/* .publish-button carries its own margin-top, which would stack a second
+   gap on top of .form-actions' own — same precedent as
+   .entry-publish-button and .done-action. */
+.form-publish-button {
+  margin-top: 0;
+}
+
 /* Uploading phase */
 
 /* The prototype wraps the whole uploading phase (heading, box, footnote) at
@@ -497,6 +514,13 @@ h1 {
   height: 100%;
   width: 0%;
   background: var(--accent);
+}
+
+/* Not in the design (see the button's own markup comment) — placed where
+   the prototype's unrendered footnote paragraph sits, hence its top
+   margin (16px, var(--space-4)) rather than a paragraph's. */
+.upload-cancel-button {
+  margin-top: var(--space-4);
 }
 
 /* Result phase (Kopierfeld) */
@@ -631,6 +655,43 @@ h1 {
 
 .another-button:hover {
   background: var(--paper-sunken);
+}
+
+/* The accent button, shared by the dashboard's "New handout" and the result
+   page's "To the dashboard" (prototype-dashboard.excerpt.html, blocks B and
+   C — the same values in both). Being an <a>, not a <button>, it needs the
+   same display/line-height/text-decoration/color treatment .another-button
+   already carries for the same reason. */
+.primary-button {
+  display: inline-block;
+  height: var(--control-height);
+  line-height: calc(var(--control-height) - 2px);
+  padding: 0 20px;
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary-button:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.done-actions {
+  margin-top: var(--space-6);
+  display: flex;
+  gap: var(--space-3);
+}
+
+/* .another-button carries its own margin-top, which would stack a second
+   gap on top of .done-actions' own — same precedent as
+   .entry-publish-button resetting .publish-button's margin-top. */
+.done-action {
+  margin-top: 0;
 }
 
 /* Protect option (prototype "Neues Handout", lines 78-93) */
@@ -868,8 +929,18 @@ h1 {
   margin-top: 0;
 }
 
-.entry-cancel-button {
+/* Shared by every cancel handle in the "New handout" flow (the form, the
+   transfer, the entry choice, the rejected screen) — one class, one set of
+   values, from prototype-cancel.excerpt.html block A/B (byte-for-byte the
+   same button in both). It also carries the link treatment
+   .another-button uses for the same reason (display, line-height,
+   text-decoration, color): two of its four uses are an <a>, not a
+   <button>, and a link must work without JavaScript and must not submit
+   the form it sits in. */
+.cancel-button {
+  display: inline-block;
   height: var(--control-height);
+  line-height: calc(var(--control-height) - 2px);
   padding: 0 20px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -877,9 +948,10 @@ h1 {
   font-weight: var(--weight-semibold);
   cursor: pointer;
   color: var(--ink);
+  text-decoration: none;
 }
 
-.entry-cancel-button:hover {
+.cancel-button:hover {
   background: var(--paper-sunken);
 }
 
@@ -979,4 +1051,223 @@ h1 {
 .viewer-submit:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
+}
+
+/* Dashboard (Meine Handouts) and the row (HandoutZeile), from
+   prototype-dashboard.excerpt.html block B and HandoutZeile.dc.html. The
+   dashboard renders through page()'s default .page-body — the excerpt's own
+   dashboard wrapper (max-width:880px, padding:48px 5% 96px) is identical to
+   that rule, so it is reused rather than restated (var(--page-max) is
+   880px). The h1 rule and .lead-wide, both already declared above, are the
+   excerpt's heading and count sentence exactly, for the same reason. */
+
+.dash-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.dash-empty {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+  padding: 64px 0;
+}
+
+.dash-empty-text {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+/* Supplies only the rule above the first row; each row brings its own
+   bottom rule. */
+.handout-list {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--line-strong);
+}
+
+.handout-row {
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 12px;
+}
+
+.handout-row:hover {
+  background: var(--row-hover);
+}
+
+.handout-row-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px 24px;
+  flex-wrap: wrap;
+}
+
+.handout-row-main {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.handout-row-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.handout-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Colour comes from the page's own `a` rule (--accent-ink), like
+   .copy-field-link — not restated here. */
+.handout-row-address {
+  font-size: var(--text-sm);
+  font-family: ui-monospace, Menlo, monospace;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.handout-row-stamp {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+/* The shared box: alignment, size, spacing. The two variants below differ
+   in background, border colour, text colour and — the component sets it on
+   only one of the two — font weight, so none of those live here. */
+.handout-row-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-1);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.handout-row-badge-protected {
+  background: var(--accent-quiet);
+  border: 1px solid var(--accent);
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink-strong);
+}
+
+.handout-row-badge-open {
+  background: var(--paper-sunken);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+}
+
+.handout-row-badge-mark {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+}
+
+.handout-row-badge-mark-open {
+  background: none;
+  border: 1px solid var(--ink-muted);
+}
+
+.handout-row-actions {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  align-self: flex-start;
+}
+
+/* The row's own copy button — smaller than --control-height/--text-base,
+   which are the page's default control size. */
+.handout-row-copy-button {
+  height: 34px;
+  padding: 0 14px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+  color: var(--accent-ink);
+  min-width: 150px;
+  cursor: pointer;
+}
+
+.handout-row-copy-button:hover {
+  background: var(--accent-quiet);
+}
+
+.handout-row-menu-button {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+/* The component's dotsBg: the toggle's own background while its menu is
+   open. */
+.handout-row-menu-button[aria-expanded="true"] {
+  background: var(--paper-sunken);
+}
+
+.handout-row-menu-button:hover {
+  background: var(--paper-sunken);
+}
+
+.handout-row-menu {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  width: 292px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-2);
+  top: calc(100% + 6px);
+}
+
+.handout-row-menu-up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.handout-row-menu-item {
+  width: 100%;
+  display: block;
+  text-align: left;
+  padding: 11px 14px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line-quiet);
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+/* Every item in the file carries the bottom rule except the one that is
+   always last — written literally, this story's last item would draw a
+   hairline directly on the menu's own border, so the pattern is "a rule
+   between items, none after the last" rather than a literal copy of every
+   item's own rule. */
+.handout-row-menu-item:last-child {
+  border-bottom: 0;
+}
+
+.handout-row-menu-item:hover {
+  background: var(--paper-sunken);
 }

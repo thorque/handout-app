@@ -17,10 +17,11 @@
       "enabled": true,
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "+"
+        "post.logout.redirect.uris": "http://handout-caddy.localhost/##http://handout-3000.localhost/##http://handout.localhost/##http://handout.localhost:81/##http://localhost:3000/"
       },
       "redirectUris": [
         "http://handout-caddy.localhost/auth/callback",
+        "http://handout-3000.localhost/auth/callback",
         "http://handout.localhost/auth/callback",
         "http://handout.localhost:81/auth/callback",
         "http://localhost:3000/auth/callback"
@@ -30,12 +31,29 @@
   ],
   "users": [
     {
+      "id": "5d2c31e3-07fb-453a-b85e-2d499cb7f691",
       "username": "miriam",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Miriam",
       "lastName": "Publisher",
       "email": "miriam@example.invalid",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "handout",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "id": "4ba2344b-2b59-4bec-9ad6-b76edec7c0e9",
+      "username": "joerg",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Joerg",
+      "lastName": "Publisher",
+      "email": "joerg@example.invalid",
       "credentials": [
         {
           "type": "password",

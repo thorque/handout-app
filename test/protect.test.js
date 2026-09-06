@@ -28,11 +28,13 @@ async function publish(t2, fields) {
   return { res, json: await res.json(), cookie };
 }
 
-test("GET / offers the protect option, checked, with a usable server-rendered suggestion", async () => {
+test("GET /handouts/new offers the protect option, checked, with a usable server-rendered suggestion", async () => {
   const t2 = await buildTestServer();
   try {
     const cookie = sessionCookie(t2);
-    const res = await fetch(`${t2.baseUrl}/`, { headers: { cookie } });
+    const res = await fetch(`${t2.baseUrl}/handouts/new`, {
+      headers: { cookie },
+    });
     const html = await res.text();
 
     assert.match(

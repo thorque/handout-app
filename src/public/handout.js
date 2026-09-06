@@ -156,6 +156,123 @@
     apply();
   }
 
+  // The dashboard row's `⋯` menu. Returns immediately when the dashboard is
+  // not the page rendered, so nothing else here is touched.
+  function initRowMenu() {
+    var toggles = document.querySelectorAll("[data-row-menu-toggle]");
+    if (toggles.length === 0) return;
+
+    var openMenu = null;
+    var openToggle = null;
+    var closeTimer = null;
+
+    // Only one menu is open at a time, so one pending auto-close timer is
+    // always enough — but it must be cancelled here, on every path that
+    // closes a menu (a second toggle, a click outside, Escape, and this
+    // timer's own callback), not only where it was started. Without this,
+    // a timer scheduled for row A by its own "Copy password" click keeps
+    // running after A is closed some other way, and later fires against
+    // whatever row is open by then — closing row B's menu out from under
+    // someone who just opened it.
+    function closeMenu() {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+      if (!openMenu) return;
+      openMenu.hidden = true;
+      openMenu.classList.remove("handout-row-menu-up");
+      if (openToggle) openToggle.setAttribute("aria-expanded", "false");
+      openMenu = null;
+      openToggle = null;
+    }
+
+    toggles.forEach(function (toggle) {
+      // This is what makes the handle exist at all: there is no clipboard
+      // without a script, so the toggle stays `hidden` until this runs.
+      toggle.hidden = false;
+
+      var menu = document.getElementById(toggle.getAttribute("aria-controls"));
+      if (!menu) return;
+
+      toggle.addEventListener("click", function () {
+        if (openMenu === menu) {
+          closeMenu();
+          return;
+        }
+        // Only one menu open at a time.
+        closeMenu();
+        menu.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        openMenu = menu;
+        openToggle = toggle;
+
+        // Flip-up: measure the menu's own rendered height rather than
+        // copying the component's constants, which count menu items this
+        // story does not build.
+        var rect = toggle.getBoundingClientRect();
+        var up = rect.bottom + menu.offsetHeight > window.innerHeight;
+        menu.classList.toggle("handout-row-menu-up", up);
+      });
+
+      menu.querySelectorAll("[data-copy-button]").forEach(function (item) {
+        item.addEventListener("click", function () {
+          // The receipt shows for 2000 ms in initCopy(); closing the menu
+          // after 1000 ms lets the publisher see it for the first second,
+          // then gets the menu out of the way — the component's own
+          // behaviour, kept.
+          clearTimeout(closeTimer);
+          closeTimer = setTimeout(closeMenu, 1000);
+        });
+      });
+    });
+
+    document.addEventListener("pointerdown", function (event) {
+      if (!openMenu) return;
+      if (
+        !openMenu.contains(event.target) &&
+        event.target !== openToggle &&
+        !(openToggle && openToggle.contains(event.target))
+      ) {
+        closeMenu();
+      }
+    });
+
+    // Not in the component — a deliberate addition mirroring
+    // initProfilePanel(), the one other popover in the product.
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && openMenu) closeMenu();
+    });
+  }
+
+  // Rewrites each "last state" stamp from the server's UTC text to the
+  // device's own time zone. Without JavaScript, or when Intl is missing or
+  // the value unparseable, the server's text — which names its zone — is
+  // left standing rather than replaced with a bare one.
+  function initLocalStamps() {
+    var stamps = document.querySelectorAll("[data-local-stamp]");
+    if (stamps.length === 0) return;
+    if (
+      typeof Intl === "undefined" ||
+      typeof Intl.DateTimeFormat !== "function"
+    )
+      return;
+
+    var datePart = new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "long",
+    });
+    var timePart = new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+
+    stamps.forEach(function (el) {
+      var date = new Date(el.getAttribute("datetime"));
+      if (isNaN(date.getTime())) return;
+      el.textContent = datePart.format(date) + ", " + timePart.format(date);
+    });
+  }
+
   function formatBytes(bytes) {
     if (bytes >= 1024 * 1024) {
       var mb = (bytes / (1024 * 1024)).toFixed(1);
@@ -193,6 +310,7 @@
     var passwordInput = form.querySelector("#password");
     var suggestButton = form.querySelector("[data-suggest-password]");
     var publishButton = form.querySelector("[data-publish-button]");
+    var formCancel = form.querySelector("[data-form-cancel]");
     var uploadBox = form.querySelector("[data-upload-box]");
     var uploadFile = uploadBox
       ? uploadBox.querySelector("[data-upload-file]")
@@ -202,6 +320,9 @@
       : null;
     var uploadFill = uploadBox
       ? uploadBox.querySelector("[data-upload-fill]")
+      : null;
+    var uploadCancelButton = uploadBox
+      ? uploadBox.querySelector("[data-upload-cancel]")
       : null;
 
     var maxUploadBytes = Number(dropArea.getAttribute("data-max-upload-bytes"));
@@ -381,12 +502,30 @@
       });
     }
 
+    // Tracks the in-flight upload, if any, so the transfer-phase cancel
+    // button — wired once, below, not once per submit — always aborts the
+    // right request regardless of how many times the form was submitted
+    // before it.
+    var activeXhr = null;
+
+    if (uploadCancelButton) {
+      uploadCancelButton.addEventListener("click", function () {
+        if (activeXhr) activeXhr.abort();
+        // Navigate straight away rather than relying on xhr.onabort: that
+        // handler exists to restore the form after an abort from
+        // elsewhere, and running it here first would only flash the form
+        // back before the navigation replaces it anyway.
+        window.location.assign("/");
+      });
+    }
+
     form.addEventListener("submit", function (event) {
       if (!window.XMLHttpRequest || !selectedFile) return;
       event.preventDefault();
 
       var formData = new FormData(form);
       var xhr = new XMLHttpRequest();
+      activeXhr = xhr;
       xhr.open("POST", form.action, true);
       xhr.setRequestHeader("Accept", "application/json");
 
@@ -407,12 +546,18 @@
       dropArea.hidden = true;
       if (fieldBlock) fieldBlock.hidden = true;
       publishButton.hidden = true;
+      // The form-phase cancel sits right next to the Publish button, which
+      // is hidden for the duration of the transfer — hide this one with
+      // it, or the page shows two cancel handles at once (this one and
+      // the transfer-phase one below).
+      if (formCancel) formCancel.hidden = true;
       if (uploadBox) {
         uploadBox.hidden = false;
         if (uploadFile)
           uploadFile.textContent =
             selectedFile.name + " · " + formatBytes(selectedFile.size);
       }
+      if (uploadCancelButton) uploadCancelButton.hidden = false;
 
       // Every terminal outcome — success, refusal, a transport error, a
       // timeout, an abort — closes the progress box, brings the drop area,
@@ -425,10 +570,13 @@
       // finishUpload is what makes it visible again, framed and carrying
       // the message in the same slot the publisher was just watching.
       function finishUpload() {
+        activeXhr = null;
+        if (uploadCancelButton) uploadCancelButton.hidden = true;
         if (uploadBox) uploadBox.hidden = true;
         dropArea.hidden = false;
         if (fieldBlock) fieldBlock.hidden = false;
         publishButton.hidden = false;
+        if (formCancel) formCancel.hidden = false;
         updatePublishButton();
       }
 
@@ -561,5 +709,7 @@
     initProtectToggle();
     initDropArea();
     initEntryChoice();
+    initRowMenu();
+    initLocalStamps();
   });
 })();

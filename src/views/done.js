@@ -137,7 +137,10 @@ export function renderDone({ user, config, title, address, password }) {
   ${copyMessageRow(address, password)}
 </div>
 
-<a class="another-button" href="/">${esc(strings["done.another"])}</a>
+<div class="done-actions">
+  <a class="primary-button" href="/">${esc(strings["done.toDashboard"])}</a>
+  <a class="another-button done-action" href="/handouts/new">${esc(strings["done.another"])}</a>
+</div>
 </div>`;
 
   return page({ title: "Handout", user, body, config });

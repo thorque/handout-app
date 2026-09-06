@@ -24,12 +24,14 @@ handout can carry a password, set while publishing it: the protection covers
 every request under its address, not only the entry page, and the password
 stays readable to the publisher (see
 `docs/adr/0009-password-stored-in-plain-text.md`). A zip whose entry page is
-not derivable now asks for it instead of being refused.
+not derivable now asks for it instead of being refused. Signing in lands on a
+dashboard of your own handouts, with their address and their last state's
+time; the row hands you the address, the password, or both together, ready to
+paste into a message.
 
-Not there yet: a dashboard listing what you published, updating a handout in
-place, deleting one, reissuing a password, the MCP endpoint for agents, a
-published compose file, and a mode for operators who cannot get a wildcard DNS
-entry.
+Not there yet: updating a handout in place, deleting one, reissuing a
+password, the MCP endpoint for agents, a published compose file, and a mode
+for operators who cannot get a wildcard DNS entry.
 
 ## Getting it running
 

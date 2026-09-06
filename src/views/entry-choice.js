@@ -96,7 +96,7 @@ ${rows}
       data-label-ready="${esc(strings["publish.ready"])}"
       data-label-no-entry="${esc(strings["publish.noEntry"])}"
     >${esc(strings["publish.ready"])}</button>
-    <button type="submit" name="cancel" value="1" formnovalidate class="entry-cancel-button">${esc(strings["entry.cancel"])}</button>
+    <button type="submit" name="cancel" value="1" formnovalidate class="cancel-button">${esc(strings["entry.cancel"])}</button>
   </div>
 </form>`;
 
@@ -108,7 +108,10 @@ export function renderRejected({ user, config }) {
 <h1>${esc(strings["form.heading"])}</h1>
 <p class="lead">${esc(strings["rejected.lead"])}</p>
 <div class="rejected-message" role="alert"><span aria-hidden="true" class="rejected-message-icon">${esc(strings["error.icon"])}</span><span>${esc(strings["error.noHtml"])}</span></div>
-<a class="another-button" href="/">${esc(strings["rejected.chooseAnother"])}</a>`;
+<div class="done-actions">
+  <a class="another-button done-action" href="/handouts/new">${esc(strings["rejected.chooseAnother"])}</a>
+  <a class="cancel-button" href="/">${esc(strings["rejected.cancel"])}</a>
+</div>`;
 
   return page({ title: "Handout", user, body, config });
 }

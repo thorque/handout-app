@@ -22,6 +22,7 @@ import {
   UnsafeZipError,
 } from "../storage.js";
 import { renderNewHandout, formatBytes } from "../views/new-handout.js";
+import { renderDashboard } from "../views/dashboard.js";
 import { renderDone } from "../views/done.js";
 import { renderError } from "../views/error.js";
 import { renderEntryChoice, renderRejected } from "../views/entry-choice.js";
@@ -105,9 +106,20 @@ async function publishStaged({
   let address;
   try {
     await client.query("begin");
+    // `owner` is the provider's identifier and the only thing that decides
+    // who may see this row again. The email beside it decides nothing — it
+    // is written so an operator moving to a different identity provider can
+    // still tell whose handouts are whose, since every identifier changes in
+    // that move (docs/adr/0017). An empty one is stored as null: a provider
+    // is not obliged to hand an email over.
     const result = await client.query(
-      "insert into handout (title, owner, password) values ($1, $2, $3) returning id",
-      [title.trim(), request.user.sub, protect ? password : null],
+      "insert into handout (title, owner, owner_email, password) values ($1, $2, $3, $4) returning id",
+      [
+        title.trim(),
+        request.user.sub,
+        request.user.email || null,
+        protect ? password : null,
+      ],
     );
     address = await claimAddress(client, result.rows[0].id);
     await promoteToContent(config, stagingToken, address);
@@ -138,10 +150,41 @@ export default async function publisherRoutes(fastify) {
   const { config, pool } = fastify;
 
   fastify.get("/", { preHandler: requireUser }, async (request, reply) => {
+    const result = await pool.query(
+      `select h.title as title, h.password as password, h.updated_at as updated_at,
+              a.value as address
+         from handout h
+         join address a on a.handout_id = h.id
+        where h.owner = $1
+        order by h.updated_at desc`,
+      [request.user.sub],
+    );
+
+    const handouts = result.rows.map((row) => {
+      const href = handoutUrl(request, row.address);
+      return {
+        title: row.title,
+        password: row.password,
+        updatedAt: row.updated_at,
+        href,
+        address: href.replace(/^https?:\/\//, ""),
+      };
+    });
+
     reply.header("cache-control", "no-store");
     reply.header("content-type", "text/html; charset=utf-8");
-    return renderNewHandout({ user: request.user, config });
+    return renderDashboard({ user: request.user, config, handouts });
   });
+
+  fastify.get(
+    "/handouts/new",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      reply.header("cache-control", "no-store");
+      reply.header("content-type", "text/html; charset=utf-8");
+      return renderNewHandout({ user: request.user, config });
+    },
+  );
 
   fastify.post(
     "/handouts",
@@ -431,6 +474,8 @@ export default async function publisherRoutes(fastify) {
       if (body.cancel) {
         await removeStaging(config, stagingToken);
         await removePending(config, stagingToken);
+        // Abandoning a flow in any phase goes back to the dashboard —
+        // nothing was published, and there is nothing left to resume.
         const location = "/";
         if (acceptsJson(request)) {
           return reply.code(200).send({ location });

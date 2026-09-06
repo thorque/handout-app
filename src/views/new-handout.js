@@ -81,6 +81,18 @@ ${
         <div class="upload-fill" data-upload-fill></div>
       </div>
     </div>
+    <!-- Not in the design (the prototype's uploading phase has no cancel
+         at all) — the maintainer asked for one anyway: abort the transfer
+         and leave for the dashboard. Placed where the prototype's own
+         "Der Austausch am Ende ist atomar." paragraph sits, a slot this
+         product does not render, hence the same top margin instead of a
+         paragraph. -->
+    <button
+      type="button"
+      class="cancel-button upload-cancel-button"
+      data-upload-cancel
+      hidden
+    >${esc(strings["upload.cancel"])}</button>
   </div>
 
   <!-- Hidden alongside the drop area during a transfer, not disabled: the
@@ -134,16 +146,19 @@ ${
     </div>
   </div>
 
-  <button
-    type="submit"
-    class="publish-button"
-    disabled
-    data-publish-button
-    data-label-ready="${esc(strings["publish.ready"])}"
-    data-label-no-file="${esc(strings["publish.noFile"])}"
-    data-label-no-title="${esc(strings["publish.noTitle"])}"
-    data-label-no-password="${esc(strings["publish.noPassword"])}"
-  >${esc(strings["publish.noFile"])}</button>
+  <div class="form-actions">
+    <button
+      type="submit"
+      class="publish-button form-publish-button"
+      disabled
+      data-publish-button
+      data-label-ready="${esc(strings["publish.ready"])}"
+      data-label-no-file="${esc(strings["publish.noFile"])}"
+      data-label-no-title="${esc(strings["publish.noTitle"])}"
+      data-label-no-password="${esc(strings["publish.noPassword"])}"
+    >${esc(strings["publish.noFile"])}</button>
+    <a class="cancel-button" href="/" data-form-cancel>${esc(strings["form.cancel"])}</a>
+  </div>
 </form>`;
 
   return page({ title: "Handout", user, body, config });

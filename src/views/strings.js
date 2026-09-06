@@ -53,6 +53,15 @@ export const strings = {
   "done.passwordCopyFailed":
     "Copying failed. Select the password and copy it by hand.",
   "done.another": "Another handout",
+  "done.copyBoth": "Copy address and password",
+  "done.bothCopied": "→ Address and password copied",
+  "done.copyBothFailed":
+    "Copying failed. Select the address and the password and copy them by hand.",
+
+  // the message that goes into a mail or a chat — src/message.js composes it,
+  // the result page and the dashboard's row menu both hand out that one form
+  "message.addressLabel": "Handout:",
+  "message.passwordLabel": "Password:",
 
   // viewer's password page
   "viewer.heading": "Enter password",

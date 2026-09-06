@@ -222,6 +222,85 @@ test("the JSON variant returns 201 with a location", async () => {
   }
 });
 
+// docs/adr/0017: the provider's identifier owns the row; the email is a note
+// beside it, so an operator moving to a different provider can still tell
+// whose handouts are whose. Nothing reads it to decide access.
+test("publishing records the publisher's identifier as the owner and their email beside it", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const cookie = t2.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
+    const { body, contentType } = buildMultipart([
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
+      { name: "title", value: "My Site" },
+    ]);
+    const res = await fetch(`${t2.baseUrl}/handouts`, {
+      method: "POST",
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
+      body,
+    });
+    assert.strictEqual(res.status, 201);
+
+    const row = await t2.pool.query(
+      "select owner, owner_email from handout where title = $1",
+      ["My Site"],
+    );
+    assert.strictEqual(row.rows[0].owner, "u1");
+    assert.strictEqual(row.rows[0].owner_email, "t@example.invalid");
+  } finally {
+    await t2.close();
+  }
+});
+
+test("a provider that hands over no email leaves the note empty, and publishing still works", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const cookie = t2.signSession({ sub: "u2" });
+    const { body, contentType } = buildMultipart([
+      {
+        type: "file",
+        name: "file",
+        filename: "site.zip",
+        content: TWO_FILE_SITE,
+        contentType: "application/zip",
+      },
+      { name: "title", value: "No Email" },
+    ]);
+    const res = await fetch(`${t2.baseUrl}/handouts`, {
+      method: "POST",
+      headers: {
+        cookie,
+        accept: "application/json",
+        "content-type": contentType,
+      },
+      body,
+    });
+    assert.strictEqual(res.status, 201);
+
+    const row = await t2.pool.query(
+      "select owner, owner_email from handout where title = $1",
+      ["No Email"],
+    );
+    assert.strictEqual(row.rows[0].owner, "u2");
+    assert.strictEqual(row.rows[0].owner_email, null);
+  } finally {
+    await t2.close();
+  }
+});
+
 test("413 by Content-Length, before the body is read", async () => {
   const t2 = await buildTestServer();
   try {

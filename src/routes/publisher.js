@@ -106,9 +106,20 @@ async function publishStaged({
   let address;
   try {
     await client.query("begin");
+    // `owner` is the provider's identifier and the only thing that decides
+    // who may see this row again. The email beside it decides nothing — it
+    // is written so an operator moving to a different identity provider can
+    // still tell whose handouts are whose, since every identifier changes in
+    // that move (docs/adr/0017). An empty one is stored as null: a provider
+    // is not obliged to hand an email over.
     const result = await client.query(
-      "insert into handout (title, owner, password) values ($1, $2, $3) returning id",
-      [title.trim(), request.user.sub, protect ? password : null],
+      "insert into handout (title, owner, owner_email, password) values ($1, $2, $3, $4) returning id",
+      [
+        title.trim(),
+        request.user.sub,
+        request.user.email || null,
+        protect ? password : null,
+      ],
     );
     address = await claimAddress(client, result.rows[0].id);
     await promoteToContent(config, stagingToken, address);

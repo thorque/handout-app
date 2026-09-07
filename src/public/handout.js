@@ -248,6 +248,13 @@
       if (deleteItem) {
         deleteItem.addEventListener("click", closeMenu);
       }
+
+      // The component's toggleRotate sets `menu: false` first thing too —
+      // the password panel takes the menu's place in the row.
+      var passwordItem = menu.querySelector("[data-row-password-item]");
+      if (passwordItem) {
+        passwordItem.addEventListener("click", closeMenu);
+      }
     });
 
     document.addEventListener("pointerdown", function (event) {
@@ -1036,6 +1043,12 @@
       // taken at render time.
       function openPanel() {
         showMessage("");
+        // The design's own state machine makes the row's panels mutually
+        // exclusive (the component's toggleEntry sets `rotating: false`) —
+        // the password panel takes no part in this row's own logic, so it
+        // is closed here directly rather than through its own module.
+        var passwordPanel = row.querySelector("[data-row-password-panel]");
+        if (passwordPanel) passwordPanel.hidden = true;
         var xhr = new XMLHttpRequest();
         xhr.open("GET", entryUrl, true);
         xhr.setRequestHeader("Accept", "application/json");
@@ -1132,6 +1145,179 @@
     });
   }
 
+  // The row's "issue a new password" panel (docs/adr/0025, docs/adr/0026).
+  // Modelled on initRowEntry() above. Returns immediately when the
+  // dashboard is not the page rendered.
+  function initRowPassword() {
+    var list = document.querySelector("[data-handout-list]");
+    if (!list) return;
+
+    list.querySelectorAll("[data-handout-row]").forEach(function (row) {
+      var panel = row.querySelector("[data-row-password-panel]");
+      var item = row.querySelector("[data-row-password-item]");
+      if (!panel || !item) return;
+
+      var toggle = row.querySelector("[data-row-menu-toggle]");
+      var passwordUrl = row.getAttribute("data-password-url");
+      var input = panel.querySelector("[data-row-password-input]");
+      var saveButton = panel.querySelector("[data-row-password-save]");
+      var cancelButton = panel.querySelector("[data-row-password-cancel]");
+      var errorSpan = panel.querySelector("[data-row-password-error]");
+      var copyBoth = row.querySelector("[data-row-copy-both]");
+      var copyPassword = row.querySelector("[data-row-copy-password]");
+      var badgeProtected = row.querySelector("[data-row-badge-protected]");
+      var badgeOpen = row.querySelector("[data-row-badge-open]");
+
+      // Its own implementation, not rowMessage(): that helper reports into
+      // the row's shared upload/entry slot, and this refusal has its own
+      // slot in the design's field-hint-error position instead.
+      function showError(text) {
+        errorSpan.textContent = "";
+        if (!text) {
+          errorSpan.hidden = true;
+          input.classList.remove("field-input-error");
+          return;
+        }
+        var icon = document.createElement("span");
+        icon.setAttribute("aria-hidden", "true");
+        icon.className = "drop-message-icon";
+        icon.textContent = list.getAttribute("data-message-icon") || "";
+        errorSpan.appendChild(icon);
+        errorSpan.appendChild(document.createTextNode(text));
+        errorSpan.hidden = false;
+        input.classList.add("field-input-error");
+      }
+
+      function closePanel() {
+        panel.hidden = true;
+        showError("");
+        input.value = "";
+        if (toggle) toggle.focus();
+      }
+
+      // A fresh suggestion on every open, protected or not, never the
+      // current password (docs/adr/0025) — fetched from the same
+      // /password-suggestion route the publish screen's suggest button
+      // already hardcodes.
+      function openPanel() {
+        showError("");
+
+        // The design's own state machine makes the row's panels mutually
+        // exclusive — the entry panel takes no part in this row's own
+        // logic, so it is closed here directly rather than through its own
+        // module.
+        var entryPanel = row.querySelector("[data-row-entry-panel]");
+        if (entryPanel) entryPanel.hidden = true;
+
+        panel.hidden = false;
+        input.focus();
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/password-suggestion", true);
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.onload = function () {
+          if (xhr.status < 200 || xhr.status >= 300) return;
+          var response;
+          try {
+            response = JSON.parse(xhr.responseText);
+          } catch {
+            return;
+          }
+          if (response && response.password) {
+            input.value = response.password;
+          }
+        };
+        // A transport failure leaves the field empty — there is nothing to
+        // suggest.
+        xhr.onerror = function () {};
+        xhr.send();
+      }
+
+      item.addEventListener("click", openPanel);
+      cancelButton.addEventListener("click", closePanel);
+
+      panel.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !panel.hidden) closePanel();
+      });
+
+      saveButton.addEventListener("click", function () {
+        saveButton.disabled = true;
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", passwordUrl, true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.onload = function () {
+          var response = null;
+          try {
+            response = JSON.parse(xhr.responseText);
+          } catch {
+            // fall through with response left null
+          }
+
+          if (xhr.status >= 200 && xhr.status < 300) {
+            // No banner and no reload: the row's badge and copy items
+            // simply follow from the password that was just replaced or
+            // removed (docs/adr/0026). An empty field removes the password
+            // — response.password is then null, and messageText(href,
+            // null) already answered null, so both branches read straight
+            // off the response rather than re-deriving anything here
+            // (docs/adr/0025).
+            if (response.password) {
+              if (copyBoth) {
+                copyBoth.setAttribute("data-copy", response.message);
+                copyBoth.hidden = false;
+              }
+              if (copyPassword) {
+                copyPassword.setAttribute("data-copy", response.password);
+                copyPassword.hidden = false;
+              }
+              if (badgeProtected) badgeProtected.hidden = false;
+              if (badgeOpen) badgeOpen.hidden = true;
+              item.textContent = item.getAttribute("data-label-protected");
+            } else {
+              // setAttribute("data-copy", null) would write the four
+              // letters "null" into the attribute — the same trap
+              // rowMenu()'s own password ? guard already avoids server-side
+              // — so the two attributes are cleared instead.
+              if (copyBoth) {
+                copyBoth.setAttribute("data-copy", "");
+                copyBoth.hidden = true;
+              }
+              if (copyPassword) {
+                copyPassword.setAttribute("data-copy", "");
+                copyPassword.hidden = true;
+              }
+              if (badgeProtected) badgeProtected.hidden = true;
+              if (badgeOpen) badgeOpen.hidden = false;
+              item.textContent = item.getAttribute("data-label-open");
+            }
+            saveButton.disabled = false;
+            closePanel();
+            return;
+          }
+
+          // The typed value is not lost: the panel stays open and the
+          // message reports why the save was refused.
+          saveButton.disabled = false;
+          if (response && response.error) showError(response.error);
+        };
+        xhr.onerror = function () {
+          saveButton.disabled = false;
+        };
+        xhr.send(JSON.stringify({ password: input.value }));
+      });
+
+      // An upload takes the row over — the same rule initRowEntry()'s panel
+      // follows.
+      var fileInput = row.querySelector("[data-row-file-input]");
+      if (fileInput) {
+        fileInput.addEventListener("change", function () {
+          if (!panel.hidden) closePanel();
+        });
+      }
+    });
+  }
+
   // The one delete dialog on the page (docs/adr/0024): every word in its
   // markup comes from a data-* attribute the view wrote or from the
   // server-rendered markup — no interface literal in this file.
@@ -1189,6 +1375,7 @@
     initRowMenu();
     initRowUpload();
     initRowEntry();
+    initRowPassword();
     initRowDelete();
     initLocalStamps();
   });

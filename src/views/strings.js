@@ -127,6 +127,26 @@ export const strings = {
   // entry.cancel): the prefix names the screen, so a later wording change on
   // one must not silently move the other.
   "row.delete": "Delete handout",
+  // the ⋯ item's two labels — the design system's "Liste" note is the
+  // authority: without a password "Neues Passwort vergeben" reads "Passwort
+  // einrichten".
+  "row.newPassword": "Issue a new password",
+  "row.setPassword": "Set a password",
+  // The panel's own heading does NOT swap: HandoutZeile.dc.html writes it as
+  // a literal, not a placeholder, so it reads the same on a free row. Same
+  // words as row.newPassword, its own key on purpose — the module already
+  // does this for form.cancel / upload.cancel / row.delete.
+  "row.passwordHeading": "Issue a new password",
+  "row.passwordNote":
+    "The address stays the same. The old password stops applying the moment you save.",
+  // Under the field, not part of row.passwordNote above — a permanent hint,
+  // not an error, so it stays put when the error span below it is empty.
+  // Authored by the maintainer, not taken from a design file: it is the only
+  // label the one way back from "protected" to "freely reachable" has
+  // (docs/adr/0025).
+  "row.passwordRemoveHint": "Clear the field to remove the password.",
+  "row.passwordSave": "Save",
+  "row.passwordCancel": "Cancel",
   "stamp.utc": "{stamp} UTC",
 
   // the message that goes into a mail or a chat — src/message.js composes it,

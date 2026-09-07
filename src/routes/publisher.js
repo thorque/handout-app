@@ -40,6 +40,7 @@ import { renderEntryChoice, renderRejected } from "../views/entry-choice.js";
 import { strings, t } from "../views/strings.js";
 import { utcStamp } from "../views/stamp.js";
 import { PASSWORD_MAX_LENGTH, suggestPassword } from "../password.js";
+import { messageText } from "../message.js";
 
 // Thrown by swapState when the handout it was about to update was deleted
 // while the upload was in flight (docs/adr/0022).
@@ -838,6 +839,72 @@ export default async function publisherRoutes(fastify) {
       // uploaded state, and nothing was uploaded (the fourth acceptance
       // criterion).
       return reply.code(200).send({ entry });
+    },
+  );
+
+  // Replaces a handout's password — issuing a new one, or setting one on a
+  // handout that had none — without touching the address (docs/adr/0025).
+  // JSON only, on every path, like the row's other two JSON routes above:
+  // the ⋯ menu that holds this action is rendered hidden and revealed by
+  // script, so there is no no-JavaScript path into this route to serve HTML
+  // into.
+  fastify.post(
+    "/handouts/:address/password",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      const { address } = request.params;
+      const result = await pool.query(
+        "select h.id as id, h.owner as owner from address a join handout h on h.id = a.handout_id where a.value = $1",
+        [address],
+      );
+      const row = result.rows[0];
+      if (!row || row.owner !== request.user.sub) {
+        return reply.code(404).send({ error: strings["error.unknownAddress"] });
+      }
+
+      const typed =
+        typeof request.body?.password === "string" ? request.body.password : "";
+      // An empty field removes the password rather than being refused — the
+      // prototype's own rotate panel takes this path too (rotateLabel and
+      // isProtected are both derived from `pw`), and the design system's
+      // "password is missing" refusal belongs to the publish screen's
+      // checkbox, which this panel does not have (docs/adr/0025). `null`,
+      // not "", is what an unprotected handout carries out of a first
+      // publish — one column, one representation of "no password". The
+      // stored value is otherwise kept untrimmed, exactly as `POST
+      // /handouts` keeps it; `trim()` here only detects emptiness.
+      const password = typed.trim() === "" ? null : typed;
+      if (password && password.length > PASSWORD_MAX_LENGTH) {
+        return reply.code(422).send({
+          error: t("error.passwordTooLong", { limit: PASSWORD_MAX_LENGTH }),
+        });
+      }
+
+      // `owner` is repeated here although it was just checked, so the
+      // writing statement is true on its own (docs/adr/0022's own pattern).
+      // No `updated_at` in this statement, and no database trigger sets it
+      // (checked migrations/1700000000000_handout-and-address.cjs):
+      // `updated_at` names "last state uploaded", and nothing was uploaded
+      // (docs/adr/0025). Existing viewer sessions expire with no new
+      // mechanism here — isUnlocked() compares the unlock cookie's
+      // fingerprint against the password read from the row on every
+      // request, so replacing it invalidates every open session by
+      // construction (src/protection.js); removing the password takes the
+      // gate itself out (src/content.js's `password &&` check), so a viewer
+      // is not even asked any more.
+      const update = await pool.query(
+        "update handout set password = $1 where id = $2 and owner = $3",
+        [password, row.id, request.user.sub],
+      );
+      if (update.rowCount === 0) {
+        // The handout was deleted between the check above and this write.
+        return reply.code(404).send({ error: strings["error.unknownAddress"] });
+      }
+
+      const href = handoutUrl(request, address);
+      return reply
+        .code(200)
+        .send({ password, message: messageText(href, password) });
     },
   );
 

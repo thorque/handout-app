@@ -127,6 +127,20 @@ export const strings = {
   // entry.cancel): the prefix names the screen, so a later wording change on
   // one must not silently move the other.
   "row.delete": "Delete handout",
+  // the ⋯ item's two labels — the design system's "Liste" note is the
+  // authority: without a password "Neues Passwort vergeben" reads "Passwort
+  // einrichten".
+  "row.newPassword": "Issue a new password",
+  "row.setPassword": "Set a password",
+  // The panel's own heading does NOT swap: HandoutZeile.dc.html writes it as
+  // a literal, not a placeholder, so it reads the same on a free row. Same
+  // words as row.newPassword, its own key on purpose — the module already
+  // does this for form.cancel / upload.cancel / row.delete.
+  "row.passwordHeading": "Issue a new password",
+  "row.passwordNote":
+    "The address stays the same. The old password stops applying the moment you save.",
+  "row.passwordSave": "Save",
+  "row.passwordCancel": "Cancel",
   "stamp.utc": "{stamp} UTC",
 
   // the message that goes into a mail or a chat — src/message.js composes it,
@@ -182,6 +196,13 @@ export const strings = {
   "error.passwordTooLong": "A password can be at most {limit} characters.",
   "error.passwordWrong": "The password is not right.",
   "error.unknownAddress": "This handout does not exist.",
+  // Authored here, not taken from a design file: the design shows the *slot*
+  // (its "Feld" section's error field and message) but the only sentence it
+  // carries belongs to the publish screen's checkbox
+  // (error.passwordMissing, "then turn the option off"), which names a
+  // handle this panel does not have.
+  "error.newPasswordMissing":
+    "The password is missing. Type one, or cancel to keep the current one.",
   "error.entryStateMoved":
     "This handout has been updated in the meantime. Reload the page and choose again.",
   "error.handoutDeleted": "This handout has been deleted. Reload the page.",

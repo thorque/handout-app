@@ -2,6 +2,7 @@ import { esc, page } from "./layout.js";
 import { strings, t } from "./strings.js";
 import { utcStamp } from "./stamp.js";
 import { messageText } from "../message.js";
+import { PASSWORD_MAX_LENGTH } from "../password.js";
 
 // Every label the row's address handle can end up showing, mirrored from
 // RESERVED_LABELS in src/views/done.js: only the two the button actually
@@ -21,14 +22,15 @@ function reserveSpans(labels) {
     .join("\n        ");
 }
 
-// Exactly one badge per row — the component's isProtected / isOpen are
-// mutually exclusive. The word carries the state; the 8x8 square next to it
-// is aria-hidden and adds nothing a reader needs.
+// Both badges are always rendered, the inapplicable one carrying `hidden` —
+// the component's isProtected / isOpen are mutually exclusive, so exactly
+// one is ever visible, and the pair is what lets the row change in place
+// after a password save without a re-render (docs/adr/0026). The word
+// carries the state; the 8x8 square next to it is aria-hidden and adds
+// nothing a reader needs.
 function badge(protect) {
-  if (protect) {
-    return `<span class="handout-row-badge handout-row-badge-protected"><span class="handout-row-badge-mark" aria-hidden="true"></span>${esc(strings["row.protected"])}</span>`;
-  }
-  return `<span class="handout-row-badge handout-row-badge-open"><span class="handout-row-badge-mark handout-row-badge-mark-open" aria-hidden="true"></span>${esc(strings["row.open"])}</span>`;
+  return `<span class="handout-row-badge handout-row-badge-protected"${protect ? "" : " hidden"} data-row-badge-protected><span class="handout-row-badge-mark" aria-hidden="true"></span>${esc(strings["row.protected"])}</span>
+        <span class="handout-row-badge handout-row-badge-open"${protect ? " hidden" : ""} data-row-badge-open><span class="handout-row-badge-mark handout-row-badge-mark-open" aria-hidden="true"></span>${esc(strings["row.open"])}</span>`;
 }
 
 // The `⋯` menu and its toggle — rendered on every row now, protected or
@@ -51,7 +53,12 @@ function rowMenu({
   rawAddress,
 }) {
   const menuId = `row-menu-${address}`;
-  const messageValue = esc(messageText(href, password)).replace(/\n/g, "&#10;");
+  // messageText(href, null) is null on an open row — esc(null) would
+  // otherwise render the four letters "null" into the attribute, so the
+  // value is computed only when there is a password to compose one from.
+  const messageValue = password
+    ? esc(messageText(href, password)).replace(/\n/g, "&#10;")
+    : "";
 
   return `<button
         type="button"
@@ -63,30 +70,30 @@ function rowMenu({
         aria-controls="${esc(menuId)}"
       >⋯</button>
       <div class="handout-row-menu" id="${esc(menuId)}" role="menu" hidden data-row-menu>
-        ${
-          password
-            ? `<button
+        <button
           type="button"
           role="menuitem"
           class="handout-row-menu-item"
           data-copy-button
+          data-row-copy-both
           data-copy="${messageValue}"
           data-copied-label="${esc(strings["row.bothCopied"])}"
           data-copy-failed-label="${esc(strings["row.copyBothFailed"])}"
           aria-live="polite"
+          ${password ? "" : "hidden"}
         >${esc(strings["row.copyBoth"])}</button>
         <button
           type="button"
           role="menuitem"
           class="handout-row-menu-item"
           data-copy-button
-          data-copy="${esc(password)}"
+          data-row-copy-password
+          data-copy="${esc(password || "")}"
           data-copied-label="${esc(strings["row.passwordCopied"])}"
           data-copy-failed-label="${esc(strings["row.copyPasswordFailed"])}"
           aria-live="polite"
-        >${esc(strings["row.copyPassword"])}</button>`
-            : ""
-        }
+          ${password ? "" : "hidden"}
+        >${esc(strings["row.copyPassword"])}</button>
         ${
           canChangeEntry
             ? `<button
@@ -111,6 +118,14 @@ function rowMenu({
           aria-hidden="true"
           data-row-file-input
         >
+        <button
+          type="button"
+          role="menuitem"
+          class="handout-row-menu-item"
+          data-row-password-item
+          data-label-protected="${esc(strings["row.newPassword"])}"
+          data-label-open="${esc(strings["row.setPassword"])}"
+        >${esc(password ? strings["row.newPassword"] : strings["row.setPassword"])}</button>
         <button
           type="button"
           role="menuitem"
@@ -175,6 +190,39 @@ function entryPanel(rawAddress) {
   </div>`;
 }
 
+// The row's inline "issue a new password" panel — rendered on every row,
+// unlike entryPanel() above, which is conditional (docs/adr/0026): a free
+// row offers "Set a password" just as much as a protected one offers "Issue
+// a new password". The design gives the field no visible label — the
+// panel's bold heading is its name — so aria-labelledby points at that
+// heading rather than inventing a label the design does not have.
+// aria-describedby is present from the start and points at the hidden error
+// span; a hidden element is not announced, so no attribute juggling is
+// needed when the refusal appears. The heading and note do not swap between
+// a protected and a free row: HandoutZeile.dc.html writes both as literals,
+// not as placeholders (docs/adr/0025's assumption).
+function passwordPanel(rawAddress) {
+  return `<div class="handout-row-password" data-row-password-panel hidden>
+    <div class="handout-row-password-heading" id="row-password-heading-${esc(rawAddress)}">${esc(strings["row.passwordHeading"])}</div>
+    <p class="handout-row-password-note">${esc(strings["row.passwordNote"])}</p>
+    <div class="handout-row-password-row">
+      <input
+        type="text"
+        class="handout-row-password-input"
+        maxlength="${PASSWORD_MAX_LENGTH}"
+        autocomplete="off"
+        spellcheck="false"
+        aria-labelledby="row-password-heading-${esc(rawAddress)}"
+        aria-describedby="row-password-error-${esc(rawAddress)}"
+        data-row-password-input
+      >
+      <button type="button" class="handout-row-password-save" data-row-password-save>${esc(strings["row.passwordSave"])}</button>
+      <button type="button" class="handout-row-password-cancel" data-row-password-cancel>${esc(strings["row.passwordCancel"])}</button>
+    </div>
+    <span class="field-hint field-hint-error handout-row-password-error" id="row-password-error-${esc(rawAddress)}" hidden data-row-password-error></span>
+  </div>`;
+}
+
 // The sentence's word order stays in strings.js; the two values are filled in
 // by the script with textContent when the dialog opens (docs/adr/0024). The
 // template is escaped first — it carries no HTML — and the two placeholders,
@@ -199,7 +247,7 @@ function row({
 }) {
   const reserves = reserveSpans(ADDRESS_RESERVED_LABELS);
 
-  return `<div class="handout-row" data-handout-row data-upload-url="/handouts/${esc(rawAddress)}/state" data-entry-url="/handouts/${esc(rawAddress)}/entry">
+  return `<div class="handout-row" data-handout-row data-upload-url="/handouts/${esc(rawAddress)}/state" data-entry-url="/handouts/${esc(rawAddress)}/entry" data-password-url="/handouts/${esc(rawAddress)}/password">
   <div class="handout-row-inner">
     <div class="handout-row-main">
       <span class="handout-row-title">${esc(title)}</span>
@@ -230,6 +278,7 @@ function row({
     <div class="upload-track"><div class="upload-fill" data-row-upload-fill></div></div>
   </div>
   ${canChangeEntry ? entryPanel(rawAddress) : ""}
+  ${passwordPanel(rawAddress)}
   <div class="handout-row-message" data-row-upload-message hidden aria-live="polite"></div>
 </div>`;
 }

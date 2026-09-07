@@ -213,29 +213,43 @@ test("protection is a word, not only a colour", async () => {
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
-    // Counted on the badge markup itself, not on every occurrence of the
-    // word: "Password" also appears inside the combined handle's own
-    // message text, which is unrelated to this criterion.
-    const protectedBadges =
-      html.match(
-        new RegExp(
-          `class="handout-row-badge-mark" aria-hidden="true"></span>${strings["row.protected"]}<`,
-          "g",
-        ),
-      ) || [];
-    assert.strictEqual(protectedBadges.length, 1);
-    const openBadges =
-      html.match(
-        new RegExp(
-          `class="handout-row-badge-mark handout-row-badge-mark-open" aria-hidden="true"></span>${strings["row.open"]}<`,
-          "g",
-        ),
-      ) || [];
-    assert.strictEqual(openBadges.length, 1);
-    const marks =
-      html.match(/class="handout-row-badge-mark[^"]*" aria-hidden="true">/g) ||
-      [];
-    assert.strictEqual(marks.length, 2);
+    // Both badge spans exist on every row now (docs/adr/0026); the
+    // criterion — "a word, not only a colour" — is checked on whichever of
+    // the pair is actually visible per row, which is the stronger question.
+    const rows = html.split("data-handout-row").slice(1);
+    assert.strictEqual(rows.length, 2);
+
+    function badgeHiddenState(rowHtml) {
+      const protectedTag = /<span[^>]*data-row-badge-protected[^>]*>/.exec(
+        rowHtml,
+      )[0];
+      const openTag = /<span[^>]*data-row-badge-open[^>]*>/.exec(rowHtml)[0];
+      const protectedHidden = /\bhidden\b/.test(protectedTag);
+      const openHidden = /\bhidden\b/.test(openTag);
+      assert.notStrictEqual(protectedHidden, openHidden);
+      return { protectedHidden, openHidden };
+    }
+
+    const protectedRow = rows.find((row) => row.includes("Protected One"));
+    const openRow = rows.find((row) => row.includes("Open One"));
+
+    const protectedRowBadges = badgeHiddenState(protectedRow);
+    assert.strictEqual(protectedRowBadges.protectedHidden, false);
+    assert.strictEqual(protectedRowBadges.openHidden, true);
+    assert.ok(
+      protectedRow.includes(
+        `class="handout-row-badge-mark" aria-hidden="true"></span>${strings["row.protected"]}<`,
+      ),
+    );
+
+    const openRowBadges = badgeHiddenState(openRow);
+    assert.strictEqual(openRowBadges.protectedHidden, true);
+    assert.strictEqual(openRowBadges.openHidden, false);
+    assert.ok(
+      openRow.includes(
+        `class="handout-row-badge-mark handout-row-badge-mark-open" aria-hidden="true"></span>${strings["row.open"]}<`,
+      ),
+    );
   } finally {
     await t.close();
   }
@@ -315,29 +329,45 @@ test("the ⋯ menu holds the password items only for a protected handout", async
     const res = await fetch(`${t.baseUrl}/`, { headers: { cookie } });
     const html = await res.text();
 
-    assert.strictEqual(
-      (html.match(new RegExp(strings["row.copyBoth"], "g")) || []).length,
-      1,
-    );
-    assert.strictEqual(
-      (html.match(new RegExp(strings["row.copyPassword"], "g")) || []).length,
-      1,
-    );
     assert.ok(html.includes(`data-copy="barn-leaf-dove-945"`));
 
-    // Six menu items in total: the two password items plus the upload item
-    // and the delete item on the protected row, and the upload item plus
-    // the delete item on the open row — every row carries the upload item
-    // and the delete item now, protected or not.
+    // The two copy items now exist on both rows — hidden on the open one,
+    // visible on the protected one (docs/adr/0026).
+    const rows = html.split("data-handout-row").slice(1);
+    const protectedRow = rows.find((row) =>
+      row.includes(`data-copy="barn-leaf-dove-945"`),
+    );
+    const openRow = rows.find(
+      (row) => !row.includes(`data-copy="barn-leaf-dove-945"`),
+    );
+    const copyBothOnProtected = /<button[^>]*data-row-copy-both[^>]*>/.exec(
+      protectedRow,
+    )[0];
+    const copyPasswordOnProtected =
+      /<button[^>]*data-row-copy-password[^>]*>/.exec(protectedRow)[0];
+    assert.doesNotMatch(copyBothOnProtected, /\bhidden\b/);
+    assert.doesNotMatch(copyPasswordOnProtected, /\bhidden\b/);
+    const copyBothOnOpen = /<button[^>]*data-row-copy-both[^>]*>/.exec(
+      openRow,
+    )[0];
+    const copyPasswordOnOpen = /<button[^>]*data-row-copy-password[^>]*>/.exec(
+      openRow,
+    )[0];
+    assert.match(copyBothOnOpen, /\bhidden\b/);
+    assert.match(copyPasswordOnOpen, /\bhidden\b/);
+
+    // Ten menu items in total, five per row: copy both, copy password,
+    // upload, new password, delete — neither row offers the entry item
+    // (TWO_FILE_SITE has one HTML file).
     const menuItems = html.match(/role="menuitem"/g) || [];
-    assert.strictEqual(menuItems.length, 6);
+    assert.strictEqual(menuItems.length, 10);
     assert.ok(html.includes(protectedAddress));
   } finally {
     await t.close();
   }
 });
 
-test("an open handout's ⋯ menu holds the upload item and no password item", async () => {
+test("an open handout's ⋯ menu holds the upload item and the password items hidden", async () => {
   const t = await buildTestServer();
   try {
     await publish(t, "u1", [
@@ -356,11 +386,17 @@ test("an open handout's ⋯ menu holds the upload item and no password item", as
     const html = await res.text();
 
     assert.ok(html.includes("data-row-menu-toggle"));
-    assert.ok(!html.includes(strings["row.copyPassword"]));
-    assert.ok(!html.includes(strings["row.copyBoth"]));
+    // The two copy items are present but hidden: only the *item*, not the
+    // whole menu, is password-only (docs/adr/0026).
+    const copyBothTag = /<button[^>]*data-row-copy-both[^>]*>/.exec(html)[0];
+    const copyPasswordTag = /<button[^>]*data-row-copy-password[^>]*>/.exec(
+      html,
+    )[0];
+    assert.match(copyBothTag, /\bhidden\b/);
+    assert.match(copyPasswordTag, /\bhidden\b/);
     assert.ok(html.includes(strings["row.uploadState"]));
     const menuItems = html.match(/role="menuitem"/g) || [];
-    assert.strictEqual(menuItems.length, 2);
+    assert.strictEqual(menuItems.length, 5);
   } finally {
     await t.close();
   }

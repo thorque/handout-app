@@ -1468,7 +1468,8 @@ h1 {
   margin-top: 12px;
 }
 
-.handout-row-entry-save {
+.handout-row-entry-save,
+.handout-row-password-save {
   height: var(--control-height);
   padding: 0 16px;
   background: var(--accent);
@@ -1484,19 +1485,26 @@ h1 {
    are the design system's to decide (see docs/adr/0021). Its :active is
    deliberately left out: no primary button in this codebase carries one
    today, and adding it here alone would make this the odd one out. */
-.handout-row-entry-save:hover {
+.handout-row-entry-save:hover,
+.handout-row-password-save:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
 
-.handout-row-entry-save:disabled {
+/* Reached by the entry save button while nothing is chosen or the choice is
+   unchanged; reached by the password save button only while a save is in
+   flight (the prototype never disables this one — see initRowPassword() in
+   src/public/handout.js). */
+.handout-row-entry-save:disabled,
+.handout-row-password-save:disabled {
   background: var(--paper-sunken);
   color: var(--line-strong);
   border: 1px solid var(--line);
   cursor: not-allowed;
 }
 
-.handout-row-entry-cancel {
+.handout-row-entry-cancel,
+.handout-row-password-cancel {
   height: var(--control-height);
   padding: 0 16px;
   background: var(--surface);
@@ -1506,8 +1514,65 @@ h1 {
   cursor: pointer;
 }
 
-.handout-row-entry-cancel:hover {
+.handout-row-entry-cancel:hover,
+.handout-row-password-cancel:hover {
   background: var(--paper-sunken);
+}
+
+/* The row's "issue a new password" panel (docs/adr/0025, docs/adr/0026).
+   Values read off HandoutZeile.dc.html's isRotating block and the design
+   system's "Feld" section. Per the file's own substitution rule, only
+   var(--text-sm), var(--weight-semibold), var(--radius-1), var(--radius-2)
+   and var(--control-height) stand in for the design's literal values;
+   everything else here is the literal px the design files themselves
+   write. */
+.handout-row-password {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-2);
+  max-width: 520px;
+}
+
+.handout-row-password-heading {
+  font-weight: var(--weight-semibold);
+}
+
+.handout-row-password-note {
+  margin: 6px 0 16px;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.handout-row-password-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* min-width:200px is the design's own value here, and .password-input
+   (src/views/new-handout.js) does not carry it — that is what earns this
+   its own class rather than reusing that one. */
+.handout-row-password-input {
+  flex: 1;
+  min-width: 200px;
+  height: var(--control-height);
+  padding: 0 12px;
+  background: var(--field);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  color: var(--ink);
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.handout-row-password-input.field-input-error {
+  border: 1px solid var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.handout-row-password-error {
+  margin-top: 6px;
 }
 
 /* The delete confirmation (docs/adr/0024). Box from the design system's

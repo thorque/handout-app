@@ -41,6 +41,10 @@ import { strings, t } from "../views/strings.js";
 import { utcStamp } from "../views/stamp.js";
 import { PASSWORD_MAX_LENGTH, suggestPassword } from "../password.js";
 
+// Thrown by swapState when the handout it was about to update was deleted
+// while the upload was in flight (docs/adr/0022).
+export class HandoutGoneError extends Error {}
+
 async function readFirstBytes(filePath, length) {
   const handle = await fsp.open(filePath, "r");
   try {
@@ -165,7 +169,9 @@ async function publishStaged({
 // with a newly staged one — the update route and the entry-choice confirm
 // (once its address branch fires) both go through this and only this.
 // See docs/adr/0018-a-handout-serves-one-state-behind-a-pointer.md.
-async function swapState({
+// Exported so this race can be driven deterministically from a test, one
+// step at a time.
+export async function swapState({
   pool,
   config,
   request,
@@ -198,6 +204,15 @@ async function swapState({
       "update handout set updated_at = now() where id = $1 returning updated_at",
       [handoutId],
     );
+    // Zero rows means the handout was deleted while this upload was in flight:
+    // the DELETE holds the row lock, this UPDATE waits for it and then finds
+    // nothing left. The delete wins (docs/adr/0022) — refuse here, before
+    // anything is renamed into a container that is about to disappear, and let
+    // the catch below roll back and remove the staging directory. Left alone,
+    // rows[0] is undefined and this is a 500.
+    if (result.rowCount === 0) {
+      throw new HandoutGoneError("The handout was deleted while updating it");
+    }
     updatedAt = result.rows[0].updated_at;
     // The filesystem work sits inside the transaction and before the commit
     // for the same reason publishStaged's does: a commit that succeeded
@@ -679,14 +694,27 @@ export default async function publisherRoutes(fastify) {
         }
       }
 
-      const updatedAt = await swapState({
-        pool,
-        config,
-        request,
-        handoutId: row.id,
-        address,
-        stagingToken: materialised.token,
-      });
+      let updatedAt;
+      try {
+        updatedAt = await swapState({
+          pool,
+          config,
+          request,
+          handoutId: row.id,
+          address,
+          stagingToken: materialised.token,
+        });
+      } catch (err) {
+        if (err instanceof HandoutGoneError) {
+          // A conflict discovered mid-request, not an address that was
+          // unknown when it began (docs/adr/0022) — the same code the
+          // entry route already uses for error.entryStateMoved.
+          return reply
+            .code(409)
+            .send({ error: strings["error.handoutDeleted"] });
+        }
+        throw err;
+      }
 
       return reply.code(200).send({
         updatedAt: updatedAt.toISOString(),
@@ -813,6 +841,47 @@ export default async function publisherRoutes(fastify) {
     },
   );
 
+  // Deleting a handout. A form POST answered with 303, not a fetch: nothing
+  // streams and nothing is swapped in place, so the count sentence and the
+  // empty state come back from the server the way they always do. HTML on
+  // every path, unlike the row's JSON routes — this one is a real form
+  // navigation. Cross-site protection is the session cookie's sameSite=lax,
+  // the same protection POST /handouts already has.
+  fastify.post(
+    "/handouts/:address/delete",
+    { preHandler: requireUser },
+    async (request, reply) => {
+      const { address } = request.params;
+      const result = await pool.query(
+        "select h.id as id, h.owner as owner from address a join handout h on h.id = a.handout_id where a.value = $1",
+        [address],
+      );
+      const row = result.rows[0];
+      if (!row || row.owner !== request.user.sub) {
+        return reply
+          .code(404)
+          .header("content-type", "text/html; charset=utf-8")
+          .send(renderError({ message: strings["error.unknownAddress"] }));
+      }
+
+      // The row first, the bytes after (docs/adr/0022). `owner` is repeated in
+      // the statement although it was just checked, so the destructive
+      // statement is true on its own. The foreign key's `on delete set null`
+      // leaves the address row standing with handout_id null — that is the
+      // "taken, but empty" state, and it is what keeps claimAddress from ever
+      // handing this value out again.
+      await pool.query("delete from handout where id = $1 and owner = $2", [
+        row.id,
+        request.user.sub,
+      ]);
+      await removeContent(config, address).catch((err) =>
+        request.log.error(err),
+      );
+
+      return reply.code(303).header("location", "/").send();
+    },
+  );
+
   fastify.get(
     "/handouts/rejected",
     { preHandler: requireUser },
@@ -924,14 +993,33 @@ export default async function publisherRoutes(fastify) {
             .send(renderError({ message: strings["error.unknownAddress"] }));
         }
 
-        const updatedAt = await swapState({
-          pool,
-          config,
-          request,
-          handoutId: row.id,
-          address: pending.address,
-          stagingToken,
-        });
+        let updatedAt;
+        try {
+          updatedAt = await swapState({
+            pool,
+            config,
+            request,
+            handoutId: row.id,
+            address: pending.address,
+            stagingToken,
+          });
+        } catch (err) {
+          if (err instanceof HandoutGoneError) {
+            // A conflict discovered mid-request (docs/adr/0022). Its
+            // pending record is left for sweepAbandoned, exactly as every
+            // other failure path on this route leaves it.
+            if (acceptsJson(request)) {
+              return reply
+                .code(409)
+                .send({ error: strings["error.handoutDeleted"] });
+            }
+            reply.header("content-type", "text/html; charset=utf-8");
+            return reply
+              .code(409)
+              .send(renderError({ message: strings["error.handoutDeleted"] }));
+          }
+          throw err;
+        }
         await removePending(config, stagingToken).catch((err) =>
           request.log.error(err),
         );

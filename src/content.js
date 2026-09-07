@@ -4,15 +4,9 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { resolveState, readMetaFrom } from "./storage.js";
 import { contentTypeFor } from "./mime.js";
-import { renderError } from "./views/error.js";
 import { renderPasswordPage } from "./views/password.js";
-import { strings } from "./views/strings.js";
-import {
-  VIEWER_ASSET_PREFIX,
-  loadProtection,
-  isUnlocked,
-  writeNext,
-} from "./protection.js";
+import { renderNoHandoutPage } from "./views/no-handout.js";
+import { loadProtection, isUnlocked, writeNext } from "./protection.js";
 
 async function isDirectory(candidate) {
   try {
@@ -23,16 +17,18 @@ async function isDirectory(candidate) {
   }
 }
 
-function unknownAddressPage(reply) {
+// The one viewer-side answer for an address that shows nothing (docs/adr/0023):
+// a made-up label, an address whose handout was deleted, and a path that is not
+// in a live handout all get this. One function on purpose — same status, same
+// bytes, same headers, so the three cases cannot be told apart. `no-store`
+// because a never-issued address can be issued later and its 404 must not
+// outlive that; the other two get it because they have to look identical.
+function noHandoutPage(reply, config) {
   return reply
     .code(404)
     .header("content-type", "text/html; charset=utf-8")
-    .send(
-      renderError({
-        message: strings["error.unknownAddress"],
-        assetPrefix: VIEWER_ASSET_PREFIX,
-      }),
-    );
+    .header("cache-control", "no-store")
+    .send(renderNoHandoutPage({ config }));
 }
 
 function isNavigation(request) {
@@ -123,15 +119,18 @@ export async function resolveTarget(config, address, url, state, meta) {
 }
 
 export async function serveContent(request, reply, address, pool, config) {
+  // A deleted address needs no branch of its own (docs/adr/0023):
+  // removeContent already took its container away, so this read comes back
+  // empty and this is the same exit a never-issued address takes too.
   const state = await resolveState(config, address);
   const meta = await readMetaFrom(state.dir);
   if (!meta) {
-    return unknownAddressPage(reply);
+    return noHandoutPage(reply, config);
   }
 
   const row = await loadProtection(pool, address);
   if (!row) {
-    return unknownAddressPage(reply);
+    return noHandoutPage(reply, config);
   }
 
   const password = row.password || null;
@@ -151,7 +150,7 @@ export async function serveContent(request, reply, address, pool, config) {
 
   const target = await resolveTarget(config, address, request.url, state, meta);
   if (!target) {
-    return unknownAddressPage(reply);
+    return noHandoutPage(reply, config);
   }
 
   const { stateId, filePath, relative, stat, meta: targetMeta } = target;

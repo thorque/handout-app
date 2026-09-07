@@ -42,7 +42,14 @@ function badge(protect) {
 // picker triggered by script), so the toggle is revealed only once the
 // script has wired the menu up (initRowMenu() in src/public/handout.js) —
 // the same treatment the combined handle on the result page gets.
-function rowMenu({ address, href, password, canChangeEntry }) {
+function rowMenu({
+  address,
+  href,
+  password,
+  canChangeEntry,
+  title,
+  rawAddress,
+}) {
   const menuId = `row-menu-${address}`;
   const messageValue = esc(messageText(href, password)).replace(/\n/g, "&#10;");
 
@@ -104,6 +111,15 @@ function rowMenu({ address, href, password, canChangeEntry }) {
           aria-hidden="true"
           data-row-file-input
         >
+        <button
+          type="button"
+          role="menuitem"
+          class="handout-row-menu-item handout-row-menu-item-danger"
+          data-row-delete
+          data-delete-url="/handouts/${esc(rawAddress)}/delete"
+          data-delete-title="${esc(title)}"
+          data-delete-address="${esc(address)}"
+        >${esc(strings["row.delete"])}</button>
       </div>`;
 }
 
@@ -159,6 +175,19 @@ function entryPanel(rawAddress) {
   </div>`;
 }
 
+// The sentence's word order stays in strings.js; the two values are filled in
+// by the script with textContent when the dialog opens (docs/adr/0024). The
+// template is escaped first — it carries no HTML — and the two placeholders,
+// which no escaping touches, are then replaced by the empty spans.
+function deleteSentence() {
+  return esc(strings["dash.deleteSentence"])
+    .replace("{title}", "<span data-delete-dialog-title></span>")
+    .replace(
+      "{address}",
+      '<span class="delete-dialog-address" data-delete-dialog-address></span>',
+    );
+}
+
 function row({
   title,
   address,
@@ -193,7 +222,7 @@ function row({
         <span class="copy-field-button-label" data-copy-label>${esc(strings["row.copyAddress"])}</span>
         ${reserves}
       </span></button>
-      ${rowMenu({ address, href, password, canChangeEntry })}
+      ${rowMenu({ address, href, password, canChangeEntry, title, rawAddress })}
     </div>
   </div>
   <div class="handout-row-upload" data-row-upload-box hidden>
@@ -238,6 +267,21 @@ ${
 >
 ${handouts.map(row).join("\n")}
 </div>
+
+${
+  empty
+    ? ""
+    : `<dialog class="delete-dialog" data-delete-dialog aria-labelledby="delete-dialog-heading">
+  <form method="post" data-delete-dialog-form>
+    <h2 class="delete-dialog-heading" id="delete-dialog-heading">${esc(strings["dash.deleteHeading"])}</h2>
+    <p class="delete-dialog-text">${deleteSentence()}</p>
+    <div class="delete-dialog-actions">
+      <button type="submit" class="delete-dialog-confirm">${esc(strings["dash.deleteConfirm"])}</button>
+      <button type="button" class="delete-dialog-cancel" data-delete-dialog-cancel autofocus>${esc(strings["dash.deleteCancel"])}</button>
+    </div>
+  </form>
+</dialog>`
+}
 
 <template data-row-entry-template><label class="handout-row-entry-row"><input type="radio"><span></span></label></template>`;
 

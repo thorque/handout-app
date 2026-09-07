@@ -325,11 +325,12 @@ test("the ⋯ menu holds the password items only for a protected handout", async
     );
     assert.ok(html.includes(`data-copy="barn-leaf-dove-945"`));
 
-    // Four menu items in total: the two password items plus the upload
-    // item on the protected row, and the upload item alone on the open row
-    // — every row carries the upload item now, protected or not.
+    // Six menu items in total: the two password items plus the upload item
+    // and the delete item on the protected row, and the upload item plus
+    // the delete item on the open row — every row carries the upload item
+    // and the delete item now, protected or not.
     const menuItems = html.match(/role="menuitem"/g) || [];
-    assert.strictEqual(menuItems.length, 4);
+    assert.strictEqual(menuItems.length, 6);
     assert.ok(html.includes(protectedAddress));
   } finally {
     await t.close();
@@ -359,7 +360,7 @@ test("an open handout's ⋯ menu holds the upload item and no password item", as
     assert.ok(!html.includes(strings["row.copyBoth"]));
     assert.ok(html.includes(strings["row.uploadState"]));
     const menuItems = html.match(/role="menuitem"/g) || [];
-    assert.strictEqual(menuItems.length, 1);
+    assert.strictEqual(menuItems.length, 2);
   } finally {
     await t.close();
   }

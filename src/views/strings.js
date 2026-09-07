@@ -77,6 +77,11 @@ export const strings = {
   "dash.countMany": "{count} handouts reachable.",
   "dash.new": "New handout",
   "dash.empty": "No handout published yet.",
+  "dash.deleteHeading": "Delete handout",
+  "dash.deleteSentence":
+    "“{title}” will be deleted. The address {address} stays taken and shows no content from then on.",
+  "dash.deleteConfirm": "Delete",
+  "dash.deleteCancel": "Cancel",
 
   "row.protected": "Password",
   "row.open": "Freely reachable",
@@ -117,6 +122,11 @@ export const strings = {
   "row.entrySave": "Save",
   "row.entrySaveUnchanged": "Save (no other page chosen)",
   "row.entryCancel": "Cancel",
+  // Same words as dash.deleteHeading, on purpose — the module already does
+  // this four times over (form.cancel, upload.cancel, rejected.cancel,
+  // entry.cancel): the prefix names the screen, so a later wording change on
+  // one must not silently move the other.
+  "row.delete": "Delete handout",
   "stamp.utc": "{stamp} UTC",
 
   // the message that goes into a mail or a chat — src/message.js composes it,
@@ -171,9 +181,10 @@ export const strings = {
     "The password is missing. Without one the handout is open to anyone who has the address — then turn the option off.",
   "error.passwordTooLong": "A password can be at most {limit} characters.",
   "error.passwordWrong": "The password is not right.",
-  "error.unknownAddress": "This address does not exist.",
+  "error.unknownAddress": "This handout does not exist.",
   "error.entryStateMoved":
     "This handout has been updated in the meantime. Reload the page and choose again.",
+  "error.handoutDeleted": "This handout has been deleted. Reload the page.",
   "error.signInFailed": "The sign-in did not complete. Start it again.",
   "error.icon": "✕", // aria-hidden next to a refusal; the message already says it in words
 };

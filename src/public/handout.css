@@ -1284,6 +1284,18 @@ h1 {
   background: var(--paper-sunken);
 }
 
+/* HandoutZeile.dc.html's askDelete item: the same geometry as every other
+   item in the menu, differing only in colour and hover surface. Placed
+   after .handout-row-menu-item:hover — same specificity, so the later rule
+   wins and the hover surface is the danger one, not the grey one. */
+.handout-row-menu-item-danger {
+  color: var(--danger-ink);
+}
+
+.handout-row-menu-item-danger:hover {
+  background: var(--danger-quiet);
+}
+
 /* HandoutZeile.dc.html, the input[type=file] right after the upload menu
    item — out of the tab order and invisible, triggered by the item's own
    click, the same construction the drop area's own file input uses
@@ -1495,5 +1507,93 @@ h1 {
 }
 
 .handout-row-entry-cancel:hover {
+  background: var(--paper-sunken);
+}
+
+/* The delete confirmation (docs/adr/0024). Box from the design system's
+   "Rückfrage" section, screen from the prototype's dashboard block, with
+   showModal()'s ::backdrop standing in for the prototype's scrim <div>. */
+.delete-dialog {
+  /* The prototype's centring wrapper carries padding:24px so the box never
+     touches the edge on a narrow viewport; showModal() centres the dialog
+     itself, so that gutter becomes the width. */
+  width: calc(100% - 48px);
+  max-width: 520px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-2);
+  color: var(--ink);
+}
+
+/* var(--scrim) resolves here through ::backdrop's inheritance from its
+   originating element. */
+.delete-dialog::backdrop {
+  background: var(--scrim);
+}
+
+.delete-dialog-heading {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+
+/* var(--ink), not --ink-muted: the design system wins for the box. */
+.delete-dialog-text {
+  margin: 12px 0 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.delete-dialog-address {
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+/* flex-wrap from the prototype; the design system's static example has no
+   reason to carry it. */
+.delete-dialog-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.delete-dialog-confirm {
+  height: var(--control-height);
+  padding: 0 20px;
+  background: var(--danger);
+  color: var(--on-danger);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.delete-dialog-confirm:hover {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+/* The design system's "Knopf" section gives this button an :active, which it
+   does not give the primary button — and --danger-active is the token that
+   literal is. */
+.delete-dialog-confirm:active {
+  background: var(--danger-active);
+  border-color: var(--danger-active);
+}
+
+/* padding: 0 20px — NOT .handout-row-entry-cancel's 0 16px. Same-looking
+   button, different screen, different value. */
+.delete-dialog-cancel {
+  height: var(--control-height);
+  padding: 0 20px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.delete-dialog-cancel:hover {
   background: var(--paper-sunken);
 }

@@ -241,6 +241,13 @@
       if (entryItem) {
         entryItem.addEventListener("click", closeMenu);
       }
+
+      // The component's askDelete sets `menu: false` first thing too — the
+      // item closes the menu and then opens the dialog.
+      var deleteItem = menu.querySelector("[data-row-delete]");
+      if (deleteItem) {
+        deleteItem.addEventListener("click", closeMenu);
+      }
     });
 
     document.addEventListener("pointerdown", function (event) {
@@ -1125,6 +1132,52 @@
     });
   }
 
+  // The one delete dialog on the page (docs/adr/0024): every word in its
+  // markup comes from a data-* attribute the view wrote or from the
+  // server-rendered markup — no interface literal in this file.
+  function initRowDelete() {
+    var dialog = document.querySelector("[data-delete-dialog]");
+    var items = document.querySelectorAll("[data-row-delete]");
+    if (!dialog || items.length === 0) return;
+
+    // No showModal(), no dialog — and then no dead menu item either.
+    if (typeof dialog.showModal !== "function") {
+      items.forEach(function (item) {
+        item.hidden = true;
+      });
+      return;
+    }
+
+    var form = dialog.querySelector("[data-delete-dialog-form]");
+    var titleEl = dialog.querySelector("[data-delete-dialog-title]");
+    var addressEl = dialog.querySelector("[data-delete-dialog-address]");
+    var cancel = dialog.querySelector("[data-delete-dialog-cancel]");
+    var opener = null;
+
+    items.forEach(function (item) {
+      item.addEventListener("click", function () {
+        form.setAttribute("action", item.getAttribute("data-delete-url"));
+        titleEl.textContent = item.getAttribute("data-delete-title");
+        addressEl.textContent = item.getAttribute("data-delete-address");
+        var row = item.closest("[data-handout-row]");
+        opener = row ? row.querySelector("[data-row-menu-toggle]") : null;
+        dialog.showModal();
+      });
+    });
+
+    cancel.addEventListener("click", function () {
+      dialog.close();
+    });
+
+    // A closed dialog hands focus back to whatever had it — the menu item,
+    // which is hidden again by then, so focus would land on the body. Put it
+    // on the row's own ⋯ toggle instead. Covers Escape as well as Cancel:
+    // showModal()'s own Escape fires "close" too.
+    dialog.addEventListener("close", function () {
+      if (opener) opener.focus();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     initTheme();
     initProfilePanel();
@@ -1136,6 +1189,7 @@
     initRowMenu();
     initRowUpload();
     initRowEntry();
+    initRowDelete();
     initLocalStamps();
   });
 })();

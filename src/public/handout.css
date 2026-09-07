@@ -1571,6 +1571,14 @@ h1 {
   box-shadow: inset 0 0 0 1px var(--danger);
 }
 
+/* Not in HandoutZeile.dc.html — a maintainer-authored addition, the only
+   label the field's one way back from "protected" to "freely reachable" has
+   (docs/adr/0025). Same 6px gap the design's own "Feld" section gives
+   between a field and its hint. */
+.handout-row-password-hint {
+  margin: 6px 0 0;
+}
+
 .handout-row-password-error {
   margin-top: 6px;
 }

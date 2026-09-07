@@ -862,14 +862,19 @@ export default async function publisherRoutes(fastify) {
         return reply.code(404).send({ error: strings["error.unknownAddress"] });
       }
 
-      const password =
+      const typed =
         typeof request.body?.password === "string" ? request.body.password : "";
-      if (password.trim() === "") {
-        return reply
-          .code(422)
-          .send({ error: strings["error.newPasswordMissing"] });
-      }
-      if (password.length > PASSWORD_MAX_LENGTH) {
+      // An empty field removes the password rather than being refused — the
+      // prototype's own rotate panel takes this path too (rotateLabel and
+      // isProtected are both derived from `pw`), and the design system's
+      // "password is missing" refusal belongs to the publish screen's
+      // checkbox, which this panel does not have (docs/adr/0025). `null`,
+      // not "", is what an unprotected handout carries out of a first
+      // publish — one column, one representation of "no password". The
+      // stored value is otherwise kept untrimmed, exactly as `POST
+      // /handouts` keeps it; `trim()` here only detects emptiness.
+      const password = typed.trim() === "" ? null : typed;
+      if (password && password.length > PASSWORD_MAX_LENGTH) {
         return reply.code(422).send({
           error: t("error.passwordTooLong", { limit: PASSWORD_MAX_LENGTH }),
         });
@@ -884,7 +889,9 @@ export default async function publisherRoutes(fastify) {
       // mechanism here — isUnlocked() compares the unlock cookie's
       // fingerprint against the password read from the row on every
       // request, so replacing it invalidates every open session by
-      // construction (src/protection.js).
+      // construction (src/protection.js); removing the password takes the
+      // gate itself out (src/content.js's `password &&` check), so a viewer
+      // is not even asked any more.
       const update = await pool.query(
         "update handout set password = $1 where id = $2 and owner = $3",
         [password, row.id, request.user.sub],

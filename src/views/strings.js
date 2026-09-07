@@ -139,6 +139,12 @@ export const strings = {
   "row.passwordHeading": "Issue a new password",
   "row.passwordNote":
     "The address stays the same. The old password stops applying the moment you save.",
+  // Under the field, not part of row.passwordNote above — a permanent hint,
+  // not an error, so it stays put when the error span below it is empty.
+  // Authored by the maintainer, not taken from a design file: it is the only
+  // label the one way back from "protected" to "freely reachable" has
+  // (docs/adr/0025).
+  "row.passwordRemoveHint": "Clear the field to remove the password.",
   "row.passwordSave": "Save",
   "row.passwordCancel": "Cancel",
   "stamp.utc": "{stamp} UTC",
@@ -196,13 +202,6 @@ export const strings = {
   "error.passwordTooLong": "A password can be at most {limit} characters.",
   "error.passwordWrong": "The password is not right.",
   "error.unknownAddress": "This handout does not exist.",
-  // Authored here, not taken from a design file: the design shows the *slot*
-  // (its "Feld" section's error field and message) but the only sentence it
-  // carries belongs to the publish screen's checkbox
-  // (error.passwordMissing, "then turn the option off"), which names a
-  // handle this panel does not have.
-  "error.newPasswordMissing":
-    "The password is missing. Type one, or cancel to keep the current one.",
   "error.entryStateMoved":
     "This handout has been updated in the meantime. Reload the page and choose again.",
   "error.handoutDeleted": "This handout has been deleted. Reload the page.",

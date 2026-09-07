@@ -196,12 +196,14 @@ function entryPanel(rawAddress) {
 // a new password". The design gives the field no visible label — the
 // panel's bold heading is its name — so aria-labelledby points at that
 // heading rather than inventing a label the design does not have.
-// aria-describedby is present from the start and points at the hidden error
-// span; a hidden element is not announced, so no attribute juggling is
-// needed when the refusal appears. The heading and note do not swap between
-// a protected and a free row: HandoutZeile.dc.html writes both as literals,
-// not as placeholders (docs/adr/0025's assumption).
+// aria-describedby names both the permanent hint and the hidden error span
+// from the start; a hidden element is not announced, so no attribute
+// juggling is needed when the refusal appears. The heading and note do not
+// swap between a protected and a free row: HandoutZeile.dc.html writes both
+// as literals, not as placeholders (docs/adr/0025's assumption).
 function passwordPanel(rawAddress) {
+  const hintId = `row-password-hint-${rawAddress}`;
+  const errorId = `row-password-error-${rawAddress}`;
   return `<div class="handout-row-password" data-row-password-panel hidden>
     <div class="handout-row-password-heading" id="row-password-heading-${esc(rawAddress)}">${esc(strings["row.passwordHeading"])}</div>
     <p class="handout-row-password-note">${esc(strings["row.passwordNote"])}</p>
@@ -213,13 +215,20 @@ function passwordPanel(rawAddress) {
         autocomplete="off"
         spellcheck="false"
         aria-labelledby="row-password-heading-${esc(rawAddress)}"
-        aria-describedby="row-password-error-${esc(rawAddress)}"
+        aria-describedby="${esc(hintId)} ${esc(errorId)}"
         data-row-password-input
       >
       <button type="button" class="handout-row-password-save" data-row-password-save>${esc(strings["row.passwordSave"])}</button>
       <button type="button" class="handout-row-password-cancel" data-row-password-cancel>${esc(strings["row.passwordCancel"])}</button>
     </div>
-    <span class="field-hint field-hint-error handout-row-password-error" id="row-password-error-${esc(rawAddress)}" hidden data-row-password-error></span>
+    <!-- Reuses .field-hint (docs/adr/0025): the design system's own "Feld"
+         section gives its under-field hint slot exactly 13px in
+         var(--ink-faint), and that is this line's whole style. Permanent,
+         not replaced by the error below it — an empty field is not a
+         refusal any more, so the only remaining errors (too long, unknown
+         address) get their own separate span underneath. -->
+    <p class="field-hint handout-row-password-hint" id="${esc(hintId)}" data-row-password-hint>${esc(strings["row.passwordRemoveHint"])}</p>
+    <span class="field-hint field-hint-error handout-row-password-error" id="${esc(errorId)}" hidden data-row-password-error></span>
   </div>`;
 }
 

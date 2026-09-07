@@ -43,14 +43,42 @@ mechanism.
 
 Saving a password identical to the one in force is accepted as the no-op write
 it is; open sessions correctly survive it, because the fingerprint is
-unchanged. Removing a password — protected back to free — is not offered:
-neither the story nor the design has a handle for it, and the menu item only
-ever sets one.
+unchanged.
+
+An empty field removes the password and makes the handout freely reachable
+again. This is not an omission the design leaves for a later story — the
+prototype's own row component has the handle already: `saveRotate` hands
+`s.draft` to `onRotate` unchecked, and `isProtected: !!pw` / `isOpen: !pw` /
+`rotateLabel: pw ? "Neues Passwort vergeben" : "Passwort einrichten"` are all
+*derived* from `pw`, so the component renders the emptied case correctly on
+its own, badge and menu wording included. The design system's "password is
+missing" refusal (`designsystem-field-error-and-list.excerpt.html`) belongs to
+the publish screen, whose remedy is its own checkbox — this panel has no
+checkbox, so an empty field is the only handle a publisher has to reach "no
+password" from here, and it is the one the prototype uses. `handout.password`
+is set to `null`, not `""`: a column with two representations of "no
+password" is exactly the drift that bites later, and `null` is what an
+unprotected handout already carries out of a first publish.
+
+A permanent hint under the field ("Clear the field to remove the password.")
+names this path — without it, the one way back from "protected" to "freely
+reachable" is unlabelled and only found by trying it. This sentence is
+authored by the maintainer, not taken from the prototype or the design
+system, so a later reconciliation with the design system knows which
+direction the alignment has to take.
 
 ## Consequences
 
-A publisher cannot read the current password out of this form, only replace it.
-A mis-typed new password is not recoverable to the previous one — it is copied
-out of the menu and handed over again, which is the same motion the story is
-about. The route is the only writer of `handout.password` after the first
-publish, so any later "reset" feature has one place to sit.
+A publisher cannot read the current password out of this form, only replace or
+remove it. A mis-typed new password is not recoverable to the previous one —
+it is copied out of the menu and handed over again, which is the same motion
+the story is about. The route is the only writer of `handout.password` after
+the first publish, so any later "reset" feature has one place to sit.
+
+The route is also the only way back from "protected" to "freely reachable" —
+there is no separate remove-password action, an empty save is the one. An open
+viewer session is not merely invalidated by an empty save, the way a changed
+password invalidates it (above): `serveContent`'s own gate
+(`password && !isUnlocked(...)` in `src/content.js`) short-circuits on a
+falsy `password`, so a request that used to need the cookie stops needing it
+at all — the content simply serves, cookie or none.

@@ -1256,19 +1256,41 @@
 
           if (xhr.status >= 200 && xhr.status < 300) {
             // No banner and no reload: the row's badge and copy items
-            // simply follow from the password that was just replaced
-            // (docs/adr/0026).
-            if (copyBoth) {
-              copyBoth.setAttribute("data-copy", response.message);
-              copyBoth.hidden = false;
+            // simply follow from the password that was just replaced or
+            // removed (docs/adr/0026). An empty field removes the password
+            // — response.password is then null, and messageText(href,
+            // null) already answered null, so both branches read straight
+            // off the response rather than re-deriving anything here
+            // (docs/adr/0025).
+            if (response.password) {
+              if (copyBoth) {
+                copyBoth.setAttribute("data-copy", response.message);
+                copyBoth.hidden = false;
+              }
+              if (copyPassword) {
+                copyPassword.setAttribute("data-copy", response.password);
+                copyPassword.hidden = false;
+              }
+              if (badgeProtected) badgeProtected.hidden = false;
+              if (badgeOpen) badgeOpen.hidden = true;
+              item.textContent = item.getAttribute("data-label-protected");
+            } else {
+              // setAttribute("data-copy", null) would write the four
+              // letters "null" into the attribute — the same trap
+              // rowMenu()'s own password ? guard already avoids server-side
+              // — so the two attributes are cleared instead.
+              if (copyBoth) {
+                copyBoth.setAttribute("data-copy", "");
+                copyBoth.hidden = true;
+              }
+              if (copyPassword) {
+                copyPassword.setAttribute("data-copy", "");
+                copyPassword.hidden = true;
+              }
+              if (badgeProtected) badgeProtected.hidden = true;
+              if (badgeOpen) badgeOpen.hidden = false;
+              item.textContent = item.getAttribute("data-label-open");
             }
-            if (copyPassword) {
-              copyPassword.setAttribute("data-copy", response.password);
-              copyPassword.hidden = false;
-            }
-            if (badgeProtected) badgeProtected.hidden = false;
-            if (badgeOpen) badgeOpen.hidden = true;
-            item.textContent = item.getAttribute("data-label-protected");
             saveButton.disabled = false;
             closePanel();
             return;

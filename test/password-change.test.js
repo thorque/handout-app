@@ -339,44 +339,94 @@ test("a free handout becomes protected, and the row says so", async () => {
   }
 });
 
-// 4. An empty password is refused and the one in force stays.
-test("an empty password is refused and the one in force stays", async () => {
+// The one way back from "protected" to "freely reachable" is otherwise
+// unlabelled — the maintainer's own hint under the field names it, on every
+// row, protected or free (docs/adr/0025).
+test("the panel's hint names the way back from a password to none, on every row", async () => {
+  const t = await buildTestServer();
+  try {
+    await publish(t, {
+      title: "Protected Row",
+      protect: true,
+      password: "barn-leaf-dove-945",
+    });
+    await publish(t, { title: "Open Row" });
+
+    const cookie = t.signSession({
+      sub: "u1",
+      name: "Test User",
+      email: "t@example.invalid",
+    });
+    const html = await (
+      await fetch(`${t.baseUrl}/`, { headers: { cookie } })
+    ).text();
+
+    const rows = html.split("data-handout-row").slice(1);
+    assert.strictEqual(rows.length, 2);
+    for (const row of rows) {
+      assert.ok(row.includes(strings["row.passwordRemoveHint"]));
+      const hintTag = /<p[^>]*data-row-password-hint[^>]*>/.exec(row)[0];
+      assert.match(hintTag, /class="field-hint handout-row-password-hint"/);
+    }
+  } finally {
+    await t.close();
+  }
+});
+
+// 4. An empty field removes the password — the prototype's own handle for
+// "protected back to free" (docs/adr/0025) — and the handout becomes freely
+// reachable to any viewer, cookie or none.
+test("an empty field removes the password, and any viewer reaches the content without a cookie", async () => {
   const t = await buildTestServer();
   try {
     const { address, cookie } = await publish(t, {
       protect: true,
       password: "barn-leaf-dove-945",
     });
+    const host = addressHost(address);
+
+    const before = await request(t.baseUrl, { path: "/", host });
+    assert.strictEqual(before.status, 401);
 
     const { res, json } = await postPassword(t, cookie, address, "");
-    assert.strictEqual(res.status, 422);
-    assert.strictEqual(json.error, strings["error.newPasswordMissing"]);
-    assert.strictEqual(await storedPassword(t, address), "barn-leaf-dove-945");
+    assert.strictEqual(res.status, 200, JSON.stringify(json));
+    assert.strictEqual(json.password, null);
+    assert.strictEqual(json.message, null);
+    assert.strictEqual(await storedPassword(t, address), null);
+
+    const after = await request(t.baseUrl, { path: "/", host });
+    assert.strictEqual(after.status, 200);
   } finally {
     await t.close();
   }
 });
 
-// 5. A whitespace-only password is refused the same way.
-test("a whitespace-only password is refused the same way", async () => {
+// 5. A whitespace-only field removes the password the same way.
+test("a whitespace-only field removes the password the same way", async () => {
   const t = await buildTestServer();
   try {
     const { address, cookie } = await publish(t, {
       protect: true,
       password: "barn-leaf-dove-945",
     });
+    const host = addressHost(address);
 
     const { res, json } = await postPassword(t, cookie, address, "   ");
-    assert.strictEqual(res.status, 422);
-    assert.strictEqual(json.error, strings["error.newPasswordMissing"]);
-    assert.strictEqual(await storedPassword(t, address), "barn-leaf-dove-945");
+    assert.strictEqual(res.status, 200, JSON.stringify(json));
+    assert.strictEqual(json.password, null);
+    assert.strictEqual(await storedPassword(t, address), null);
+
+    const after = await request(t.baseUrl, { path: "/", host });
+    assert.strictEqual(after.status, 200);
   } finally {
     await t.close();
   }
 });
 
-// 6. A missing password field is refused, not treated as empty-and-saved.
-test("a missing password field is refused, not treated as empty-and-saved", async () => {
+// 6. A missing password field is treated the same way as an empty one — the
+// route reads it as "" (see the route's own `typeof ... === "string"`
+// guard), so it removes the password too rather than being refused.
+test("a missing password field is treated as empty and also removes the password", async () => {
   const t = await buildTestServer();
   try {
     const { address, cookie } = await publish(t, {
@@ -394,9 +444,89 @@ test("a missing password field is refused, not treated as empty-and-saved", asyn
       body: JSON.stringify({}),
     });
     const json = await res.json();
-    assert.strictEqual(res.status, 422);
-    assert.strictEqual(json.error, strings["error.newPasswordMissing"]);
-    assert.strictEqual(await storedPassword(t, address), "barn-leaf-dove-945");
+    assert.strictEqual(res.status, 200, JSON.stringify(json));
+    assert.strictEqual(json.password, null);
+    assert.strictEqual(await storedPassword(t, address), null);
+  } finally {
+    await t.close();
+  }
+});
+
+// After removing the password, the dashboard shows the row freely reachable
+// again: the open badge visible, the protected badge and both copy items
+// hidden, and the old password gone from every data-copy attribute
+// (docs/adr/0026).
+test("after removing the password, the dashboard shows the row freely reachable again", async () => {
+  const t = await buildTestServer();
+  try {
+    const { address, cookie } = await publish(t, {
+      protect: true,
+      password: "barn-leaf-dove-945",
+    });
+
+    const { res } = await postPassword(t, cookie, address, "");
+    assert.strictEqual(res.status, 200);
+
+    const html = await (
+      await fetch(`${t.baseUrl}/`, { headers: { cookie } })
+    ).text();
+    const protectedBadge = /<span[^>]*data-row-badge-protected[^>]*>/.exec(
+      html,
+    )[0];
+    const openBadge = /<span[^>]*data-row-badge-open[^>]*>/.exec(html)[0];
+    assert.match(protectedBadge, /\bhidden\b/);
+    assert.doesNotMatch(openBadge, /\bhidden\b/);
+
+    const copyBothTag = /<button[^>]*data-row-copy-both[^>]*>/.exec(html)[0];
+    const copyPasswordTag = /<button[^>]*data-row-copy-password[^>]*>/.exec(
+      html,
+    )[0];
+    assert.match(copyBothTag, /\bhidden\b/);
+    assert.match(copyPasswordTag, /\bhidden\b/);
+    assert.ok(!html.includes("barn-leaf-dove-945"));
+  } finally {
+    await t.close();
+  }
+});
+
+// The round trip: free, made protected, made free again — the most honest
+// check that the same route carries both directions.
+test("a handout can go free, then protected, then free again", async () => {
+  const t = await buildTestServer();
+  try {
+    const { address, cookie } = await publish(t, {});
+    const host = addressHost(address);
+
+    assert.strictEqual(
+      (await request(t.baseUrl, { path: "/", host })).status,
+      200,
+    );
+
+    const { res: protectRes } = await postPassword(
+      t,
+      cookie,
+      address,
+      "granite-crow-fjord-208",
+    );
+    assert.strictEqual(protectRes.status, 200);
+    assert.strictEqual(
+      (await request(t.baseUrl, { path: "/", host })).status,
+      401,
+    );
+
+    const { res: freeRes, json: freeJson } = await postPassword(
+      t,
+      cookie,
+      address,
+      "",
+    );
+    assert.strictEqual(freeRes.status, 200, JSON.stringify(freeJson));
+    assert.strictEqual(freeJson.password, null);
+    assert.strictEqual(
+      (await request(t.baseUrl, { path: "/", host })).status,
+      200,
+    );
+    assert.strictEqual(await storedPassword(t, address), null);
   } finally {
     await t.close();
   }

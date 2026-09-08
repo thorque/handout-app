@@ -1,0 +1,163 @@
+# Handout, running locally: one command, and nothing is built. The application
+# is pulled from the registry at a released version.
+#
+# The values here are local development values in the open, for the same reason
+# keycloak/README.md gives for the realm fixture: they exist so that this comes
+# up reproducibly on any machine, and a real deployment sets its own. The
+# shipped Keycloak is not a demo mode — it is simply the configured OIDC
+# provider, filling the same twelve variables src/config.js requires of any
+# operator.
+#
+# The publisher interface is at http://handout.localhost:8080/ and a handout at
+# http://<address>.handout.localhost:8080/. That origin is fixed, because the
+# redirect URI it uses is registered in keycloak/realm.json. Port 8080 and not
+# 80 on purpose: a development workbench may already own handout.localhost on
+# port 80, and one name must not mean two things.
+services:
+  # A fresh named volume is created root-owned, while the image runs as the
+  # `node` user (uid 1000) and creates the directories under HANDOUT_DATA_DIR
+  # itself at start (src/storage.js, ensureDataDirs). This hands it the volume
+  # it can write. Runs to completion before the application starts, and is a
+  # no-op on every later start.
+  data-owner:
+    image: ghcr.io/thorque/handout-app:0.1.0
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["chown -R node:node /data"]
+    volumes:
+      - handout-data:/data
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: handout
+      POSTGRES_PASSWORD: handout
+      POSTGRES_DB: handout
+    healthcheck:
+      # -h checks over TCP; on the unix socket pg_isready answers during init.
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, handout, -d, handout]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      # A departure from the block this comes from, which keeps no volume
+      # because a pipeline starts empty every time. Here the handouts and their
+      # addresses have to survive `docker compose down`.
+      - postgres-data:/var/lib/postgresql
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7
+    # start-dev rather than `start`: it needs neither a database of its own nor
+    # a hostname, so the provider costs one service instead of three. The realm
+    # is a fixture (keycloak/README.md) and gets no volume on purpose — a
+    # recreated container comes back with exactly what the file says.
+    command: start-dev --import-realm
+    environment:
+      # For looking inside at http://localhost:8081/ ; the realm needs nothing
+      # from here.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/handout.json:ro
+    ports:
+      # Published beside Caddy, not behind it: the browser reaches the provider
+      # here and the application reaches it at keycloak:8080, which is the
+      # two-origin split docs/adr/0005-oidc-two-origins-and-stateless-session.md
+      # already carries. Nothing in caddy/Caddyfile knows about Keycloak.
+      - "8081:8080"
+    healthcheck:
+      # The image has no curl; bash opens the socket itself. /health/ready is on
+      # the management port and 503s until the realm import is done.
+      test:
+        [
+          CMD-SHELL,
+          "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    # Never `build:`. A pinned version rather than `latest`, so this brings up
+    # the same product tomorrow as today; the README says how to move.
+    image: ghcr.io/thorque/handout-app:0.1.0
+    # The process installs no signal handler, so it needs an init to stop on
+    # SIGTERM (see the Dockerfile).
+    init: true
+    # The OIDC discovery document is fetched at start, so an application that
+    # comes up before the realm import is finished aborts. It is restarted here
+    # until it succeeds — one or two "Could not fetch OIDC discovery document"
+    # lines in the log of a cold start are that, and are harmless.
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      # Not 127.0.0.1: Caddy reaches this from another container.
+      BIND_ADDRESS: 0.0.0.0
+      DATABASE_URL: postgresql://handout:handout@postgres:5432/handout
+      HANDOUT_DATA_DIR: /data
+      MAX_UPLOAD_BYTES: "524288000"
+      # As the browser reaches the provider, and as the tokens will carry it.
+      OIDC_ISSUER_URL: http://localhost:8081/realms/handout
+      # The same realm as this container reaches it.
+      OIDC_BACKCHANNEL_URL: http://keycloak:8080/realms/handout
+      OIDC_CLIENT_ID: handout-web
+      OIDC_CLIENT_SECRET: handout-workbench-secret
+      # This origin is plain HTTP, so both of these are true here and neither
+      # is true of a deployment that faces anybody.
+      OIDC_ALLOW_INSECURE_HTTP: "true"
+      SESSION_SECRET: local-development-session-secret-not-a-secret
+      SESSION_COOKIE_SECURE: "false"
+    volumes:
+      - handout-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      data-owner:
+        condition: service_completed_successfully
+      # service_started, not service_healthy: the restart policy above is what
+      # actually waits for the provider, and a health probe that ever went
+      # wrong would otherwise keep the application from starting at all.
+      keycloak:
+        condition: service_started
+
+  caddy:
+    image: caddy:2
+    # No `--watch`: the config is fixed for the life of the container.
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    environment:
+      # A port and no host name, which is what the README documents for
+      # development. One site block then answers for handout.localhost:8080 and
+      # for every <address>.handout.localhost:8080 under it — the publisher
+      # origin and the wildcard as one vhost, which is what the application
+      # needs to hand out addresses that resolve. caddy/Caddyfile is unchanged.
+      CADDY_SITE_ADDRESS: ":8080"
+      APP_HOST: app
+      APP_PORT: "3000"
+    volumes:
+      # The same Caddyfile the workbench mounts. It is a repo artifact.
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificate state. Unused while the site address is a bare port, and
+      # what keeps a later HTTPS site from asking the CA again on every restart.
+      - caddy-data:/data
+    ports:
+      - "8080:8080"
+    depends_on:
+      - app
+    healthcheck:
+      # A TCP connect, not an HTTP request: this answers "is Caddy listening",
+      # and any HTTP probe would answer for the application instead.
+      test: [CMD, nc, -z, localhost, "8080"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  # The published artifacts, one directory per address.
+  handout-data:
+  # The handouts, their addresses and their passwords.
+  postgres-data:
+  # Certificates and OCSP staples.
+  caddy-data:
+  # Keycloak deliberately has none: the realm is a fixture, and a recreated
+  # container re-imports it from the file.

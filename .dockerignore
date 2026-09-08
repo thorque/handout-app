@@ -1,0 +1,11 @@
+# Everything is out, and the five paths the image needs are named back in. An
+# allowlist rather than a list of exclusions: the context otherwise carries
+# data/ (hundreds of megabytes of sample uploads), node_modules/ (installed
+# again inside the image anyway) and .env — and a path forgotten in a
+# denylist ships, while a path forgotten here fails the build loudly.
+*
+!package.json
+!package-lock.json
+!src
+!migrations
+!LICENSE

@@ -30,25 +30,65 @@ time; the row hands you the address, the password, or both together, ready to
 paste into a message.
 
 Not there yet: updating a handout in place, deleting one, reissuing a
-password, the MCP endpoint for agents, a published compose file, and a mode
-for operators who cannot get a wildcard DNS entry. The application is
-published as a container image; what is still missing before an instance can
-be run is the compose that starts it together with Caddy and PostgreSQL.
+password, the MCP endpoint for agents, and a mode for operators who cannot get
+a wildcard DNS entry. The application is published as a container image, and
+a compose file brings it up together with Caddy, PostgreSQL and Keycloak.
 
 ## Getting it running
 
-The application is published to `ghcr.io/thorque/handout-app` for
-`linux/amd64` and `linux/arm64`. A release is tagged with its exact version and
-moves `latest`, and every commit on `main` is published as `main` and
-`sha-<short>` so there is something to pull between releases; the version is
-semantic and below 1.0 (see
-`docs/adr/0027-the-version-is-a-git-tag.md`). Still missing is the compose that
-brings Caddy, the application and PostgreSQL up together, configured entirely
-through environment variables, plus two DNS entries (`handout.example.com` and
-`*.handout.example.com`) and a wildcard certificate that Caddy obtains itself
-through the DNS-01 challenge.
+### Try it
 
-What an instance needs, once there is a release:
+You need Docker and nothing else. In a clone of this repository:
+
+    docker compose up
+
+That brings up the publisher interface at `http://handout.localhost:8080/`.
+Sign in as `miriam` with the password `handout` (a second publisher, `joerg`,
+has the same password), publish something from `data/testfiles/`, then open
+the address that comes back. Names under `.localhost` resolve to loopback in
+current browsers on macOS and Windows, so there is nothing to add to `hosts`
+and no DNS to set up.
+
+### What comes up
+
+Caddy on `http://handout.localhost:8080/`, the application behind it,
+PostgreSQL, and Keycloak on `http://localhost:8081` (admin console `admin` /
+`admin`) as the configured OIDC provider. The compose fills the same twelve
+variables an operator fills; there is no demo mode in the application. The
+values in `compose.yaml` are local development values in the open - the same
+reason `keycloak/README.md` gives for the realm fixture - and the address is
+fixed because its redirect URI is registered in `keycloak/realm.json`.
+
+### What survives, what does not
+
+The handouts and their addresses live in named volumes and survive
+`docker compose down`. Keycloak has no volume, so a recreated container
+re-imports `keycloak/realm.json` and loses anything clicked together in its
+admin console. `docker compose down -v` throws the handouts away too.
+
+### A newer version
+
+`compose.yaml` pins the application to its released version. To move to a
+newer one, change the tag on the `app` service (and on `data-owner`, which
+uses the same image) and run:
+
+    docker compose pull
+    docker compose up -d
+
+A release is tagged with its exact version and moves `latest`, and every
+commit on `main` is published as `main` and `sha-<short>` so there is
+something to pull between releases; the version is semantic and below 1.0
+(see `docs/adr/0027-the-version-is-a-git-tag.md`).
+
+### Running it for real
+
+This compose is plain HTTP with credentials in the open and is not a
+deployment. A real instance brings its own OIDC provider (the fixture is not a
+deployment artifact, see `keycloak/README.md`), two DNS entries
+(`handout.example.com` and `*.handout.example.com`), and a wildcard
+certificate Caddy obtains through the DNS-01 challenge.
+
+What an instance needs:
 
 - **Node 22 or newer** and **PostgreSQL 18**. The application is server rendered
   and has no build step, so there is nothing to compile and nothing to bundle.
@@ -63,6 +103,8 @@ What an instance needs, once there is a release:
   [`keycloak/README.md`](keycloak/README.md).
 - **A data directory** for the published artifacts, one directory per address
   (`docs/adr/0003-data-directory-and-entry-file.md`).
+
+### Developing on it
 
 To develop on it, set the variables below in a `.env` (copy
 [`.env.example`](.env.example)), point `DATABASE_URL` at a PostgreSQL you can

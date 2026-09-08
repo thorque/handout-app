@@ -31,15 +31,22 @@ paste into a message.
 
 Not there yet: updating a handout in place, deleting one, reissuing a
 password, the MCP endpoint for agents, a published compose file, and a mode
-for operators who cannot get a wildcard DNS entry.
+for operators who cannot get a wildcard DNS entry. The application is
+published as a container image; what is still missing before an instance can
+be run is the compose that starts it together with Caddy and PostgreSQL.
 
 ## Getting it running
 
-Running an instance is not possible yet: there is no release and no published
-compose file. Planned is one compose with Caddy, the application and PostgreSQL,
-configured entirely through environment variables, plus two DNS entries
-(`handout.example.com` and `*.handout.example.com`) and a wildcard certificate
-that Caddy obtains itself through the DNS-01 challenge.
+The application is published to `ghcr.io/thorque/handout-app` for
+`linux/amd64` and `linux/arm64`. A release is tagged with its exact version and
+moves `latest`, and every commit on `main` is published as `main` and
+`sha-<short>` so there is something to pull between releases; the version is
+semantic and below 1.0 (see
+`docs/adr/0027-the-version-is-a-git-tag.md`). Still missing is the compose that
+brings Caddy, the application and PostgreSQL up together, configured entirely
+through environment variables, plus two DNS entries (`handout.example.com` and
+`*.handout.example.com`) and a wildcard certificate that Caddy obtains itself
+through the DNS-01 challenge.
 
 What an instance needs, once there is a release:
 

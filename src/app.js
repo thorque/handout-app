@@ -10,6 +10,7 @@ import publisherRoutes from "./routes/publisher.js";
 import authRoutes from "./routes/auth.js";
 import staticRoutes from "./routes/static.js";
 import viewerRoutes from "./routes/viewer.js";
+import operationsRoutes from "./routes/operations.js";
 
 export function buildServer(
   config,
@@ -56,6 +57,7 @@ export function buildServer(
   fastify.register(authRoutes);
   fastify.register(staticRoutes);
   fastify.register(viewerRoutes);
+  fastify.register(operationsRoutes);
 
   // A response already sent (e.g. a stream reply) can still have a
   // straggling async error surface against the same request afterwards.

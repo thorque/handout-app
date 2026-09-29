@@ -4,6 +4,7 @@ import { runMigrations } from "./migrate.js";
 import { createOidc } from "./oidc.js";
 import { ensureDataDirs, sweepAbandoned } from "./storage.js";
 import { buildServer } from "./app.js";
+import { installShutdownHandlers } from "./shutdown.js";
 
 async function main() {
   let config;
@@ -28,6 +29,7 @@ async function main() {
   const fastify = buildServer(config, { pool, oidcConfig });
 
   await fastify.listen({ host: config.bindAddress, port: config.port });
+  installShutdownHandlers({ fastify, pool });
 }
 
 main();

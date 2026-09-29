@@ -29,9 +29,8 @@ USER node
 # No EXPOSE: PORT is configuration without a default (CLAUDE.md), so there is
 # no port this image could name honestly.
 #
-# The process installs no signal handler, so as PID 1 it does not stop on
-# SIGTERM. Run it under an init — `docker run --init`, or `init: true` on the
-# compose service.
+# The process handles SIGTERM itself (src/shutdown.js): it closes the server and
+# the pool and exits, so it needs no init wrapper as PID 1.
 #
 # Not `npm start`: that script passes `--env-file=.env`, and node aborts with
 # exit code 9 when the file is missing (verified). Every one of the twelve

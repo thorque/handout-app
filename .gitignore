@@ -23,6 +23,7 @@ data/testfiles/5-refused/progress-300mb.html
 !.monoceros/
 !.monoceros/launch.json
 
-# The state of the local Docker trial and of the development loop
-# (env/local.env.example, .env.example): a directory beside compose.yaml.
-state/
+# The published artifacts of the local Docker trial and of the development loop
+# (env/local.env.example, .env.example): a directory beside compose.yaml. The
+# databases are named volumes and are not in the working tree.
+/artifacts/

@@ -49,7 +49,7 @@ npm run dev
 
 Then open `http://handout.localhost:8080/` and sign in as `miriam` with the
 password `handout`. Ctrl+C stops the application; `npm run dev:down` stops the
-services it started.
+services it started and keeps their data, `npm run dev:down -- -v` discards it.
 
 ## Developing in a Monoceros workbench (an alternative)
 
@@ -157,7 +157,7 @@ identity provider.
 | `HANDOUT_DOMAIN` | dev, 1, 2, 3 | the domain the publisher interface answers on; a handout is `<address>.<this>` |
 | `KEYCLOAK_DOMAIN` | 2 | Caddy: the name the bundled Keycloak answers on |
 | `ACME_EMAIL` | dev, 1, 2, 3 | Caddy: where Let's Encrypt writes to; unused in the trial and the loop |
-| `HANDOUT_STATE_DIR` | dev, 1, 2, 3 | the one directory that holds all persistent state |
+| `HANDOUT_ARTIFACTS_DIR` | dev, 1, 2, 3 | the directory the published artifacts are kept in, a bind mount you can see and copy; the databases and Caddy's certificates are named volumes |
 | `POSTGRES_PASSWORD` | dev, 1, 2, 3 | the password of the application's database |
 | `KEYCLOAK_COMMAND`, `KEYCLOAK_REALM_FILE`, `KC_HOSTNAME`, `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | dev, 1, 2 | the bundled Keycloak: how it starts, which realm it imports, the URL it is reached at, its database password and its first administrator |
 | `APP_HOST`, `APP_PORT`, `KEYCLOAK_HOST`, `KEYCLOAK_PORT` | Caddy | where Caddy reaches the application and Keycloak; compose sets them to the service names. The development loop sets `APP_HOST` to `host.docker.internal`, a workbench's host configuration sets the first two |

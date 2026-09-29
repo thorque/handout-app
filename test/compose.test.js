@@ -79,9 +79,9 @@ test("Caddy is published where the origin says, and answers on any host name the
   assert.equal(local.get("HANDOUT_DOMAIN"), new URL(ORIGIN).hostname);
 });
 
-test("the trial keeps its state beside the compose file, and the repository ignores it", () => {
-  assert.equal(local.get("HANDOUT_STATE_DIR"), "./state");
-  assert.match(read(".gitignore"), /^state\/$/m);
+test("the trial keeps its artifacts beside the compose file, and the repository ignores them", () => {
+  assert.equal(local.get("HANDOUT_ARTIFACTS_DIR"), "./artifacts");
+  assert.match(read(".gitignore"), /^\/artifacts\/$/m);
 });
 
 test("the deployment guide names the address, the sign-in and the provider the compose brings up", () => {

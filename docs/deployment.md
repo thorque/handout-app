@@ -74,11 +74,16 @@ variables an operator fills; there is no demo mode in the application. The
 address is fixed because its redirect URI is registered in
 `keycloak/realm.json`.
 
-What survives, what does not: everything lives under `./state`, beside
-`compose.yaml` and out of git, so the handouts and their addresses survive
-`docker compose down`. Keycloak's realm is imported once; to start over from the
-fixture, run `docker compose down` and delete `state/` (on Linux that needs
-`sudo`, the containers own what they wrote there).
+What survives, what does not: the published artifacts live in `./artifacts`,
+beside `compose.yaml` and out of git; the two databases and Caddy's store are
+Docker named volumes. All of it survives `docker compose down`. Keycloak's realm
+is imported once; to start over from the fixture, discard the volumes and the
+artifacts together:
+
+```sh
+docker compose --env-file env/local.env.example down -v
+sudo rm -rf artifacts   # on Linux the container owns what it wrote there; macOS needs no sudo
+```
 
 To move to a newer version, change the tag as described under "A newer version"
 below, and pass `env/local.env.example` as the env file.
@@ -98,7 +103,7 @@ Before you start:
 
 Clone the repository to the machine, then run the block below in its root.
 **Edit the first sed command before you run it**: the two domains, the address
-Let's Encrypt writes to and the state directory are yours to choose, they cannot
+Let's Encrypt writes to and the artifacts directory are yours to choose, they cannot
 be generated, and the block does not know them. Everything else is generated,
 with `openssl rand -hex 32`: hexadecimal, so no secret can contain a character
 that breaks a connection URL.
@@ -116,7 +121,7 @@ sed -i.bak \
   -e 's|^HANDOUT_DOMAIN=.*|HANDOUT_DOMAIN=handout.example.com|' \
   -e 's|^KEYCLOAK_DOMAIN=.*|KEYCLOAK_DOMAIN=id.handout.example.com|' \
   -e 's|^ACME_EMAIL=.*|ACME_EMAIL=you@example.com|' \
-  -e 's|^HANDOUT_STATE_DIR=.*|HANDOUT_STATE_DIR=/srv/handout|' \
+  -e 's|^HANDOUT_ARTIFACTS_DIR=.*|HANDOUT_ARTIFACTS_DIR=/srv/handout/artifacts|' \
   .env
 # Generated: every secret, and the temporary administrator of Keycloak.
 sed -i.bak \
@@ -173,7 +178,7 @@ Before you start:
 
 Clone the repository to the machine, then run the block below in its root.
 **Edit the first sed command before you run it**: the domain, the address Let's
-Encrypt writes to and the state directory are yours to choose and cannot be
+Encrypt writes to and the artifacts directory are yours to choose and cannot be
 generated. The block generates two secrets, the session secret and the
 database password, with `openssl rand -hex 32`: hexadecimal, so neither can
 contain a character that breaks a connection URL.
@@ -199,7 +204,7 @@ cp env/production-external-idp.env.example .env
 sed -i.bak \
   -e 's|^HANDOUT_DOMAIN=.*|HANDOUT_DOMAIN=handout.example.com|' \
   -e 's|^ACME_EMAIL=.*|ACME_EMAIL=you@example.com|' \
-  -e 's|^HANDOUT_STATE_DIR=.*|HANDOUT_STATE_DIR=/srv/handout|' \
+  -e 's|^HANDOUT_ARTIFACTS_DIR=.*|HANDOUT_ARTIFACTS_DIR=/srv/handout/artifacts|' \
   .env
 # Generated: the two secrets this scenario owns.
 sed -i.bak \
@@ -240,7 +245,7 @@ required, and the rest of the files is described in the README's
 | `HANDOUT_DOMAIN` | 2, 3 | the domain the publisher interface answers on, e.g. `handout.example.com`; a handout is `<address>.<this>` |
 | `KEYCLOAK_DOMAIN` | 2 | the name the identity provider answers on, e.g. `id.handout.example.com`; the env file derives `KC_HOSTNAME` and `OIDC_ISSUER_URL` from it |
 | `ACME_EMAIL` | 2, 3 | where Let's Encrypt sends expiry and policy notices |
-| `HANDOUT_STATE_DIR` | 2, 3 | the one directory that holds everything that must survive, e.g. `/srv/handout` (see "What must persist, and what to back up") |
+| `HANDOUT_ARTIFACTS_DIR` | 2, 3 | the directory the published artifacts are kept in, e.g. `/srv/handout/artifacts`; the databases and Caddy's store are named volumes (see "What must persist, and what to back up") |
 | `POSTGRES_PASSWORD` | 2, 3 | the password of the application's database. Compose puts it unencoded into a connection URL, so a value you choose yourself must avoid the characters with a special meaning there: `@`, `/`, `:` and `#`. The blocks generate hex, which cannot contain them; the caution stays for a `.env` a pipeline renders from its own secret store |
 | `KC_DB_PASSWORD` | 2 | the password of Keycloak's own database |
 | `KC_BOOTSTRAP_ADMIN_USERNAME` | 2 | the temporary administrator of the identity provider's console, used once |
@@ -274,13 +279,14 @@ scenario 3, where they do not exist), so an empty value is not refused: Keycloak
 starts, reports healthy, imports the realm and creates no administrator, and
 nobody can ever sign in. Keycloak reads the two variables only on the first start
 against an empty database, so adding them afterwards changes nothing. The repair
-is to stop the stack, delete `$HANDOUT_STATE_DIR/keycloak-db` (which discards
-Keycloak's state, and it is empty of publishers at that point), fill the values
-and start again:
+is to stop the stack, remove the volume `handout_keycloak-db-data` (which
+discards Keycloak's state, and it is empty of publishers at that point), fill
+the values and start again. Never `down -v` for this: it removes the
+application's database as well.
 
 ```sh
 docker compose --env-file .env down
-sudo rm -rf "$HANDOUT_STATE_DIR/keycloak-db"
+docker volume rm handout_keycloak-db-data
 docker compose --env-file .env up -d
 ```
 
@@ -300,7 +306,7 @@ demands TLS from every address, including the application's back-channel hop ove
 the private compose network, and would refuse every token request.
 
 The realm file is imported once. Keycloak skips the import when the realm already
-exists, and this deployment keeps Keycloak's database under `HANDOUT_STATE_DIR`.
+exists, and this deployment keeps Keycloak's database in the volume `handout_keycloak-db-data`.
 So editing `keycloak/realm.production.json` later changes nothing, and a later
 change of `HANDOUT_DOMAIN` means changing the client's redirect URI and
 post-logout URI in the admin console by hand.
@@ -310,33 +316,84 @@ can publish.
 
 ### What must persist, and what to back up
 
-Everything lives under one directory, `HANDOUT_STATE_DIR` (`/srv/handout` is a
-sensible choice), so a backup is one `tar` or `rsync` of that path:
+Four things must survive. Three of them are Docker named volumes, one is a
+directory you choose, and a backup is not the same act for each:
 
-- `$HANDOUT_STATE_DIR/artifacts`: the published artifacts.
-- `$HANDOUT_STATE_DIR/postgres`: the application's database, with the handouts,
-  their addresses and their passwords.
-- `$HANDOUT_STATE_DIR/keycloak-db`: Keycloak's database, with the publishers'
-  accounts (scenario 2 only; in scenario 3 the directory does not exist).
-- `$HANDOUT_STATE_DIR/caddy`: Caddy's certificate store, with every certificate
-  issued so far (see the weekly limit below).
+| What | Where | Lost with it |
+| --- | --- | --- |
+| the published artifacts | the directory `HANDOUT_ARTIFACTS_DIR` (`/srv/handout/artifacts` is a sensible choice), a bind mount | the content of every handout |
+| the application's database | the volume `handout_postgres-data` | every handout, address and password |
+| Keycloak's database | the volume `handout_keycloak-db-data` (scenario 2 only) | the publishers' accounts |
+| Caddy's certificate store | the volume `handout_caddy-data` | every certificate, see below |
 
-Without `caddy` every certificate is requested again at once, and past roughly
-fifty active handouts that exceeds Let's Encrypt's weekly limit, so some
-published addresses stay unreachable for days.
+Why the databases are volumes and not directories you can see: a bind mount is
+owned by whoever the host maps it to. Docker Desktop on macOS and Windows maps it
+to your user, so PostgreSQL finds the data directory owned by a stranger and
+refuses to initialise ("data directory has wrong ownership"). A volume belongs to
+Docker and has no such problem on any platform (ADR 0033 in `docs/adr/`). The
+artifacts are plain files and stay a directory, because that is what you want to
+see and copy.
 
-Nothing has to exist beforehand: Docker creates the directories on the first
-start. To choose the owner and mode of the base directory yourself, create it
-first:
+**A copy of a running PostgreSQL's files is not a backup**, on any platform: it
+is taken while pages are being written and may not start, or start with a
+corrupt database. A database is backed up by dumping it. Take the dumps first and
+copy the artifacts second: the other way round, a handout published in between
+has a row and no bytes, which is worse than bytes with no row.
 
 ```sh
-sudo mkdir -p /srv/handout
+BACKUP=/srv/backup/handout-$(date +%F)
+mkdir -p "$BACKUP"
+# The application's database, from the running container.
+docker exec handout-db pg_dump -U handout -d handout --format=custom > "$BACKUP/handout.dump"
+# Keycloak's database (scenario 2 only).
+docker exec handout-keycloak-db pg_dump -U keycloak -d keycloak --format=custom > "$BACKUP/keycloak.dump"
+# The published artifacts: an ordinary directory, copy it as you copy any.
+rsync -a "$HANDOUT_ARTIFACTS_DIR/" "$BACKUP/artifacts/"
 ```
 
-Start with an empty or missing directory for `postgres` (and `keycloak-db` in
-scenario 2); PostgreSQL refuses to initialise into a directory that already holds
-files. Copy the database directories only while the stack is stopped, or use
-`pg_dump` for a live backup.
+`.env` is not state, but keep a copy of it apart from the backup: it holds the
+secrets the databases were created with.
+
+**A backup nobody has restored is not a backup.** Restoring is the reverse, onto
+a machine with the same `.env`. Start only the databases, so that nothing has
+written to them yet, restore, then start the rest:
+
+```sh
+docker compose --env-file .env up -d --wait postgres keycloak-db   # keycloak-db: scenario 2 only
+docker exec -i handout-db pg_restore -U handout -d handout --clean --if-exists < "$BACKUP/handout.dump"
+docker exec -i handout-keycloak-db pg_restore -U keycloak -d keycloak --clean --if-exists < "$BACKUP/keycloak.dump"
+rsync -a "$BACKUP/artifacts/" "$HANDOUT_ARTIFACTS_DIR/"
+docker compose --env-file .env up -d
+```
+
+Try it once on a spare machine, before you need it.
+
+**Caddy's store is a volume that must survive too.** It is machine data nobody
+inspects by hand, and it is not part of a dump, but losing it has a price: every
+certificate is requested again at once, and past roughly fifty active handouts
+that exceeds Let's Encrypt's weekly limit, so some published addresses stay
+unreachable for days. It survives `docker compose down`, a restart and an
+upgrade. It does not survive `docker compose down -v`, `docker volume rm`, or
+`docker volume prune` run while the stack is stopped. Archive it now and then
+with the rest:
+
+```sh
+docker run --rm -v handout_caddy-data:/data:ro -v "$BACKUP":/backup alpine \
+  tar czf /backup/caddy-data.tgz -C /data .
+```
+
+To restore it, extract the archive into the empty volume the same way, before
+Caddy starts.
+
+Nothing has to exist beforehand: Docker creates the volumes on the first start
+and the artifacts directory too. To choose the owner and mode of that directory
+yourself, create it first:
+
+```sh
+sudo mkdir -p /srv/handout/artifacts
+```
+
+The volume names carry the project name, `handout` (`docker volume ls`).
 
 The containers are named `handout-app`, `handout-caddy`, `handout-db`,
 `handout-keycloak`, `handout-keycloak-db` and `handout-data-owner`; the two

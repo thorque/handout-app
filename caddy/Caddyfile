@@ -1,13 +1,58 @@
+# The one Caddyfile of Handout. Everything the deployments share is here; what
+# differs is a file of site blocks under sites/, chosen by CADDY_SITES as a path
+# relative to this file, and it defaults to the workbench's.
+#
+#   sites/local.caddyfile         a bare-port site, no TLS: the Monoceros
+#                                 workbench (scenario 1) and the local Docker
+#                                 trial (scenario 2)
+#   sites/edge.caddyfile          the edge, a certificate per name, and the
+#                                 identity provider is somebody else's
+#                                 (scenario 4)
+#   sites/edge-keycloak.caddyfile the same, plus the bundled Keycloak under a
+#                                 name of its own (scenario 3)
+#
+# The choice cannot be made with a variable inside one file: a site block whose
+# address is an empty variable does not vanish, Caddy refuses it ("server block
+# without any key is global configuration"). So the sites are files, and the
+# import below picks one. The path resolves relative to this file, not to the
+# working directory, so the workbench needs no variable at all.
 {
+	# Let's Encrypt sends expiry and policy notices here. Only production ever
+	# talks to it, but the directive takes no empty value, hence a default that
+	# is not a real address: compose.yaml requires ACME_EMAIL, so it cannot be
+	# missing where it matters, and the workbench sets nothing.
+	email {$ACME_EMAIL:acme@localhost.invalid}
+
 	servers {
+		# Honour X-Forwarded-* only from a peer inside a private range. That is
+		# right in every scenario, so it lives here and not per scenario:
+		# - behind the workbench proxy the peer is that proxy, and its headers
+		#   carry the origin the browser used;
+		# - as the edge, a client from the internet has a public source address,
+		#   so its headers are replaced by the real values and it cannot pick
+		#   the origin Handout derives its addresses from.
+		# The one consequence: on a local trial box the peer is inside a private
+		# range, so a local client could set those headers. Irrelevant there,
+		# and production is still safe because of the public source address.
 		trusted_proxies static private_ranges
+	}
+
+	on_demand_tls {
+		# Asked before a certificate for an unknown name is obtained or
+		# renewed, as GET …?domain=<the full hostname>; a 2xx allows it.
+		# Straight to the application, never through a site block. Caddy
+		# refuses to start on-demand TLS without this, so the protection cannot
+		# be dropped by accident; a site that does not use on-demand TLS never
+		# asks it.
+		ask http://{$APP_HOST}:{$APP_PORT}/.handout/tls-check
 	}
 }
 
-{$CADDY_SITE_ADDRESS} {
-	# The certificate question is Caddy's alone, and this deployment does not
-	# even ask it. Blocked here anyway, so that no shipped configuration
-	# answers it from outside.
+# What every site that fronts the application does, imported by each block of
+# every file under sites/. The ask endpoint is for Caddy alone, so it is
+# unreachable from outside; the certificate question is Caddy's and nobody
+# else's.
+(handout-app) {
 	handle /.handout/tls-check* {
 		respond 404
 	}
@@ -15,3 +60,5 @@
 		reverse_proxy {$APP_HOST}:{$APP_PORT}
 	}
 }
+
+import {$CADDY_SITES:sites/local.caddyfile}

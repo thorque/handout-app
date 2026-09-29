@@ -31,7 +31,7 @@ jobs:
     env:
       # test/helpers/app.js reads POSTGRES_URL, not DATABASE_URL — an
       # undocumented thirteenth environment variable the test suite needs
-      # that the application itself never does (see .env.example and the
+      # that the application itself never does (see env/1-workbench.env.example and the
       # README's configuration table for the twelve the application reads).
       # The role has to be allowed to CREATE DATABASE: the suite creates and
       # drops handout_test around every test file. The `postgres` superuser
@@ -52,31 +52,42 @@ jobs:
       - run: npm run format:check
       - run: npm test
 
-  # The production Caddyfile runs nowhere in development, so nothing else
-  # exercises it: an unknown directive or a misplaced block would surface at the
-  # operator's first deployment. The image is the one both compose files run,
-  # and the values are dummies that only keep substitution from emptying the
-  # config.
+  # Only the workbench's site file is ever exercised in development, so the
+  # production ones would surface an unknown directive or a misplaced block at
+  # the operator's first deployment. One Caddyfile, three site files: each is
+  # validated with the environment its scenario runs it with (compose.yaml and
+  # env/), and the workbench's with nothing but its own three variables, since
+  # it is the default and needs no CADDY_SITES. The image is the one compose.yaml
+  # runs, and the values are dummies that only keep substitution from emptying
+  # the config.
   validate-caddy:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Validate both Caddyfiles
+      - name: Validate the Caddyfile with each scenario's site file
         run: |
-          for file in caddy/Caddyfile deploy/caddy/Caddyfile; do
-            docker run --rm -v "$PWD":/w -w /w \
-              -e CADDY_SITE_ADDRESS=:8080 \
-              -e HANDOUT_DOMAIN=handout.example.com \
-              -e KEYCLOAK_DOMAIN=id.handout.example.com \
-              -e ACME_EMAIL=ops@example.com \
-              -e APP_HOST=app -e APP_PORT=3000 \
-              -e KEYCLOAK_HOST=keycloak -e KEYCLOAK_PORT=8080 \
-              caddy:2 caddy validate --adapter caddyfile --config "$file"
-          done
+          validate() {
+            docker run --rm -v "$PWD/caddy":/etc/caddy:ro -w /etc/caddy "$@" \
+              caddy:2 caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
+          }
+          # 1, the workbench: the default site file, no CADDY_SITES, no ACME_EMAIL
+          validate -e CADDY_SITE_ADDRESS=:81 -e APP_HOST=workspace -e APP_PORT=5173
+          # 2, the local trial
+          validate -e CADDY_SITES=sites/local.caddyfile -e CADDY_SITE_ADDRESS=:80 \
+            -e ACME_EMAIL=nobody@handout.localhost -e APP_HOST=app -e APP_PORT=3000
+          # 3, production with the bundled Keycloak
+          validate -e CADDY_SITES=sites/edge-keycloak.caddyfile \
+            -e HANDOUT_DOMAIN=handout.example.com -e KEYCLOAK_DOMAIN=id.handout.example.com \
+            -e ACME_EMAIL=ops@example.com -e APP_HOST=app -e APP_PORT=3000 \
+            -e KEYCLOAK_HOST=keycloak -e KEYCLOAK_PORT=8080
+          # 4, production with an external provider
+          validate -e CADDY_SITES=sites/edge.caddyfile \
+            -e HANDOUT_DOMAIN=handout.example.com \
+            -e ACME_EMAIL=ops@example.com -e APP_HOST=app -e APP_PORT=3000
 
   # The image. `needs` is the whole gate, and it is two jobs since the
-  # production Caddyfile is checked on its own: there is no second path to the
+  # Caddyfile is checked on its own: there is no second path to the
   # registry, so an image can only ever exist for a tree that passed every
   # check above.
   publish:

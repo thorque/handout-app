@@ -1,0 +1,15 @@
+# Scenario 3: the edge of sites/edge.caddyfile, plus the bundled Keycloak under
+# a name of its own.
+import edge.caddyfile
+
+{$KEYCLOAK_DOMAIN} {
+	# force_automate states explicitly that this hostname is automated in its
+	# own right, so that it can never fall into the on-demand path of the
+	# pattern block in edge.caddyfile, where the ask endpoint would refuse it
+	# (`id` is not an address) and the handshake would fail. Redundant if Caddy
+	# would have managed the name anyway; the failure it prevents is a dead
+	# sign-in. It is an argument of the tls directive, not a subdirective: the
+	# block form fails to adapt.
+	tls force_automate
+	reverse_proxy {$KEYCLOAK_HOST}:{$KEYCLOAK_PORT}
+}

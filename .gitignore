@@ -22,3 +22,6 @@ data/testfiles/5-refused/progress-300mb.html
 # also swallow this project's own launch config.
 !.monoceros/
 !.monoceros/launch.json
+
+# The local Docker trial's state (env/2-local.env.example): a directory beside compose.yaml.
+state/

@@ -30,7 +30,7 @@ follows in the other direction.
 Handout is correct wherever it is put and has nothing to reconfigure when it
 moves, but it is also only as trustworthy as its proxy: `X-Forwarded-*` is taken
 at face value, so Caddy must set it and must not pass a client's version through.
-That is why the Caddyfile opens with `trusted_proxies static private_ranges`.
+That is why the Caddyfile carries `trusted_proxies static private_ranges` in its global block.
 Running Handout with no proxy in front of it and open to the internet would let a
 caller choose the origin in its own login link; that is out of scope, since
 Handout ships with Caddy in front of it as part of the product.

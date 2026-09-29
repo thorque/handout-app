@@ -1,4 +1,5 @@
-# Added to compose.yaml by the development loop only, through COMPOSE_FILE in
+# Added to compose.yaml by the development loop only: scripts/dev.sh names both
+# files, so this one reaches no deployment. It exists because
 # its .env (.env.example). The three deployment scenarios do not name it, so
 # they do not publish this port and a PostgreSQL already running on the host
 # does not stop Handout from starting.

@@ -61,7 +61,7 @@ const COMPOSE_ENVS = [
 ];
 
 // Keys an env file sets for compose itself and the compose text never names.
-const COMPOSE_OWN_KEYS = new Set(["COMPOSE_PROFILES", "COMPOSE_FILE"]);
+const COMPOSE_OWN_KEYS = new Set(["COMPOSE_PROFILES"]);
 
 const usedIn = (text) =>
   new Set(
@@ -551,12 +551,16 @@ test(".env.example is one file for both readers: compose's variables and the app
 test("npm run dev starts the services and then the application, and never the app service", () => {
   const scripts = JSON.parse(read("package.json")).scripts;
   assert.equal(scripts.dev, "sh scripts/dev.sh");
-  assert.equal(scripts["dev:down"], "docker compose --env-file .env down");
+  assert.equal(
+    scripts["dev:down"],
+    "docker compose -f compose.yaml -f compose.dev.yaml --env-file .env down",
+  );
   const script = withoutComments(read("scripts/dev.sh"));
   const calls = script.match(/^docker compose .*$/gm);
+  // Both compose files are named here, so no env file has to carry the list.
   assert.deepEqual(calls, [
-    "docker compose --env-file .env up -d --wait postgres keycloak",
-    "docker compose --env-file .env up -d --no-deps caddy",
+    "docker compose -f compose.yaml -f compose.dev.yaml --env-file .env up -d --wait postgres keycloak",
+    "docker compose -f compose.yaml -f compose.dev.yaml --env-file .env up -d --no-deps caddy",
   ]);
   // The application is the last thing, in the script's own process, so that
   // Ctrl+C ends it and leaves the detached containers alone.
@@ -567,8 +571,14 @@ test("npm run dev starts the services and then the application, and never the ap
 test("no deployment scenario publishes PostgreSQL's port or reads the development override", () => {
   assert.doesNotMatch(serviceBlock(composeCode, "postgres"), /^\s+ports:/m);
   assert.doesNotMatch(composeCode, /5432:5432/);
+  // The override is brought in by scripts/dev.sh alone; nothing a deployment
+  // reads mentions it.
   for (const n of COMPOSE_SCENARIOS) {
-    assert.equal(envOf(n).has("COMPOSE_FILE"), false, `scenario ${n}`);
+    assert.doesNotMatch(
+      read(SCENARIOS[n].env),
+      /compose\.dev\.yaml/,
+      `scenario ${n} names the development override`,
+    );
   }
 });
 
@@ -583,7 +593,15 @@ test("the development loop runs the application from source and everything else 
   // PostgreSQL is published on the host's loopback only, by the loop's own
   // override file and not by compose.yaml, and the loop's connection strings
   // say where.
-  assert.equal(dev.get("COMPOSE_FILE"), "compose.yaml:compose.dev.yaml");
+  // The development loop's two compose files are named in scripts/dev.sh, not
+  // in an env file somebody has to keep up to date.
+  const devsh = read("scripts/dev.sh");
+  assert.match(devsh, /-f compose\.yaml -f compose\.dev\.yaml/);
+  assert.equal(dev.has("COMPOSE_FILE"), false);
+  assert.match(
+    read("package.json"),
+    /"dev:down": "docker compose -f compose\.yaml -f compose\.dev\.yaml/,
+  );
   assert.match(
     withoutComments(read("compose.dev.yaml")),
     /^services:\n {2}postgres:\n {4}ports:\n {6}- "127\.0\.0\.1:5432:5432"\n$/,

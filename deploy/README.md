@@ -58,7 +58,7 @@ The application itself requires twelve, and the compose sets them:
 | `PORT` | `3000` |
 | `BIND_ADDRESS` | `0.0.0.0` |
 | `DATABASE_URL` | the `postgres` service, with `POSTGRES_PASSWORD` |
-| `HANDOUT_DATA_DIR` | `/data`, the `handout-data` volume |
+| `HANDOUT_DATA_DIR` | `/data`, the `artifacts` directory under `HANDOUT_STATE_DIR` |
 | `MAX_UPLOAD_BYTES` | `524288000` (500 MB) |
 | `OIDC_ISSUER_URL` | `https://<KEYCLOAK_DOMAIN>/realms/handout` |
 | `OIDC_BACKCHANNEL_URL` | `http://keycloak:8080/realms/handout` |
@@ -105,24 +105,58 @@ over the private compose network, and would refuse every token request.
 ## The realm file is imported once
 
 Keycloak skips the import when the realm already exists, and this deployment
-keeps Keycloak's database in a volume. So editing `keycloak/realm.json` later
+keeps Keycloak's database under `HANDOUT_STATE_DIR`. So editing `keycloak/realm.json` later
 changes nothing, and a later change of `HANDOUT_DOMAIN` means changing the
 client's redirect URI and post-logout URI in the admin console by hand.
 
 ## What must persist, and what to back up
 
-Four volumes, by the names in `compose.yaml`:
+Everything lives under one directory, `HANDOUT_STATE_DIR` (`/srv/handout` in
+`.env.example`), so a backup is one `tar` or `rsync` of that path:
 
-- `handout-data`: the published artifacts.
-- `postgres-data`: the application's database, with the handouts, their
-  addresses and their passwords.
-- `keycloak-db-data`: Keycloak's database, with the publishers' accounts.
-- `caddy-data`: Caddy's certificate store, with every certificate issued so far
-  (see the weekly limit below).
+- `$HANDOUT_STATE_DIR/artifacts`: the published artifacts.
+- `$HANDOUT_STATE_DIR/postgres`: the application's database, with the handouts,
+  their addresses and their passwords.
+- `$HANDOUT_STATE_DIR/keycloak-db`: Keycloak's database, with the publishers'
+  accounts.
+- `$HANDOUT_STATE_DIR/caddy`: Caddy's certificate store, with every certificate
+  issued so far (see the weekly limit below).
 
-Back up all four. Without `caddy-data` every certificate is requested again at
-once, and past roughly fifty active handouts that exceeds Let's Encrypt's weekly
-limit, so some published addresses stay unreachable for days.
+Without `caddy` every certificate is requested again at once, and past roughly
+fifty active handouts that exceeds Let's Encrypt's weekly limit, so some
+published addresses stay unreachable for days.
+
+Nothing has to exist beforehand: Docker creates the directories on the first
+start. To choose the owner and mode of the base directory yourself, create it
+first:
+
+    sudo mkdir -p /srv/handout
+
+Start with an empty or missing directory for `postgres` and `keycloak-db`;
+PostgreSQL refuses to initialise into a directory that already holds files.
+Copy the database directories only while the stack is stopped, or use
+`pg_dump` for a live backup.
+
+The containers are named `handout-app`, `handout-caddy`, `handout-db`,
+`handout-keycloak`, `handout-keycloak-db` and `handout-data-owner`. The fixed
+names mean a second copy of this deployment cannot run on the same host.
+
+### Moving an instance that still uses named volumes
+
+Earlier versions of this file kept the state in four Docker volumes, under the
+project name `deploy`. Once, with the new files in place:
+
+    docker compose -p deploy down
+    S=/srv/handout    # the value of HANDOUT_STATE_DIR in .env
+    sudo mkdir -p $S/artifacts $S/postgres $S/keycloak-db $S/caddy
+    for pair in handout-data:artifacts postgres-data:postgres keycloak-db-data:keycloak-db caddy-data:caddy; do
+      docker run --rm -v deploy_${pair%%:*}:/from:ro -v $S/${pair##*:}:/to alpine cp -a /from/. /to/
+    done
+    docker compose up -d
+
+If your project name was not `deploy` (the directory the compose file lived in),
+use that name for `-p` and as the volume prefix; `docker volume ls` shows it.
+Remove the old volumes with `docker volume rm` once the new stack works.
 
 ## A newer version
 
@@ -178,7 +212,7 @@ What a proxy in front of the application must do:
 - **Keep that path unreachable from outside**, as both Caddyfiles do (this directory's and the local one of the repository).
 
 The application itself is one container that needs nothing but its twelve
-variables, a PostgreSQL, and a volume for the data directory. What must persist
+variables, a PostgreSQL, and a directory for the data. What must persist
 is the list above. The container answers `GET /.handout/health` with `200` when
 it can reach its database, and stops on `SIGTERM`.
 

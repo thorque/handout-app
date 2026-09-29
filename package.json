@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node --env-file=.env src/server.js",
     "dev": "sh scripts/dev.sh",
+    "dev:monoceros": "sh scripts/dev-monoceros.sh",
     "dev:down": "docker compose --env-file .env down",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "lint": "eslint .",

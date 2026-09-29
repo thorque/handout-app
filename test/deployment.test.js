@@ -452,8 +452,7 @@ test("CI validates the Caddyfile with every site file, and with no CADDY_SITES a
 });
 
 // The README's development loop is three lines and nothing to fill; the
-// Monoceros chapter has one block that copies .env.monoceros.example. Each
-// file is complete.
+// Monoceros chapter's block is the four-line flow. Each file is complete.
 const readmeBlocks = [...readme.matchAll(/^```sh\n([\s\S]*?)^```$/gm)].map(
   (m) => m[1],
 );
@@ -467,17 +466,34 @@ test("the README's development loop is three lines, and .env.example leaves noth
   }
 });
 
-test("the workbench block of the README copies .env.monoceros.example and names no deployment's env file", () => {
-  const blocks = readmeBlocks.filter((b) =>
-    b.includes("cp .env.monoceros.example"),
-  );
+test("the workbench block of the README is the four-line flow and names npm run dev:monoceros", () => {
+  const blocks = readmeBlocks.filter((b) => b.includes("dev:monoceros"));
   assert.equal(blocks.length, 1);
-  assert.match(blocks[0], /^# Overwrites an existing \.env/m);
-  assert.ok(
-    blocks[0].includes("cp .env.monoceros.example .env\nnpm install\n"),
+  const lines = blocks[0].trimEnd().split("\n");
+  assert.equal(lines.length, 4);
+  assert.match(lines[0], /^monoceros init handout /);
+  assert.equal(lines[2], "monoceros apply handout");
+  assert.equal(
+    lines[3],
+    "monoceros run handout --in=projects/handout-app -- npm run dev:monoceros",
   );
+  // `monoceros run` has no shell in between, so nothing is chained after `--`.
+  assert.doesNotMatch(readme, /--[^\n]*&&/);
   assert.doesNotMatch(blocks[0], /env\/[a-z-]+\.env\.example/);
   assert.doesNotMatch(readme, /sed -i/);
+});
+
+test("dev:monoceros copies the workbench's .env without clobbering one and does not hardcode the app", () => {
+  assert.match(
+    read("package.json"),
+    /"dev:monoceros": "sh scripts\/dev-monoceros\.sh"/,
+  );
+  const script = read("scripts/dev-monoceros.sh");
+  assert.match(script, /if \[ -e \.env \]; then/);
+  assert.match(script, /cp \.env\.monoceros\.example \.env/);
+  assert.doesNotMatch(script, /cp -f|cp .*-f /);
+  assert.match(script, /monoceros-ctl start "\$\(basename "\$PWD"\)"/);
+  assert.doesNotMatch(script, /handout-app/);
 });
 
 test(".env.monoceros.example leaves nothing to fill and carries the same variables as .env.example", () => {

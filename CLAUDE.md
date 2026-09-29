@@ -8,8 +8,9 @@ everyone involved sees the current state from then on. Self hosted, Apache 2.0.
 
 - Node application, server rendered HTML. **No bundler and no build step.**
 - PostgreSQL for handouts, addresses and passwords.
-- Caddy in front, part of the product: one wildcard vhost, holds the wildcard
-  certificate through the DNS-01 challenge, passes host and scheme through.
+- Caddy in front, part of the product: obtains one certificate per hostname
+  itself, per handout address on demand (asked of the application first), and
+  passes host and scheme through. No wildcard certificate, no DNS-01 challenge.
 - OIDC against a configured identity provider. Handout manages no users.
 - Brought by the app itself, not run as services: web framework, zip reader,
   OIDC client, PostgreSQL driver, migration tool.

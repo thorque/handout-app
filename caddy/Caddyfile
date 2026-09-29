@@ -5,5 +5,13 @@
 }
 
 {$CADDY_SITE_ADDRESS} {
-	reverse_proxy {$APP_HOST}:{$APP_PORT}
+	# The certificate question is Caddy's alone, and this deployment does not
+	# even ask it. Blocked here anyway, so that no shipped configuration
+	# answers it from outside.
+	handle /.handout/tls-check* {
+		respond 404
+	}
+	handle {
+		reverse_proxy {$APP_HOST}:{$APP_PORT}
+	}
 }

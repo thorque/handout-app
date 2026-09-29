@@ -1,0 +1,203 @@
+# Handout for real: one machine, HTTPS, a certificate per address. Nothing is
+# built; the application is pulled from the registry at a released version, the
+# same one compose.yaml at the repository root names. This file is
+# self-contained on purpose (docs/adr/0030): copy this directory to the machine
+# and nothing else is needed.
+#
+# Every ${VAR} is required and comes from .env (see .env.example). The service
+# blocks for Caddy, Keycloak and PostgreSQL follow the catalog's pipeline
+# blocks; each departure is named where it happens.
+services:
+  # A fresh named volume is created root-owned, while the image runs as the
+  # `node` user (uid 1000). This hands it the volume it can write. Runs to
+  # completion before the application starts, and is a no-op on every later
+  # start.
+  data-owner:
+    image: ghcr.io/thorque/handout-app:0.2.0
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["chown -R node:node /data"]
+    volumes:
+      - handout-data:/data
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: handout
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set the application database password in .env}
+      POSTGRES_DB: handout
+    healthcheck:
+      # -h checks over TCP; on the unix socket pg_isready answers during init.
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, handout, -d, handout]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # A departure from the catalog block, which keeps no volume because a
+    # pipeline starts empty every time. A deployment must not lose its handouts.
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    restart: unless-stopped
+
+  # Keycloak's own database, never the application's: it owns about ninety
+  # tables and migrates them on its own upgrade cycle.
+  keycloak-db:
+    image: postgres:18
+    environment:
+      # A departure from the catalog block: the user name is not a secret, so
+      # it is fixed here and stays out of .env.
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?set Keycloak's database password in .env}
+      POSTGRES_DB: keycloak
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, keycloak, -d, keycloak]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7
+    # `start`, not start-dev. The realm is imported on first boot and skipped
+    # once it exists.
+    command: start --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:?set Keycloak's database password in .env}
+      # The public URL clients are redirected to.
+      KC_HOSTNAME: https://${KEYCLOAK_DOMAIN:?set the identity provider name in .env, e.g. id.handout.example.com}
+      # TLS terminates in Caddy, which forwards the original host and scheme.
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?set the first Keycloak administrator in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?set the first Keycloak administrator password in .env}
+      KC_HEALTH_ENABLED: "true"
+      # Read by the placeholders in the realm file at import (keycloak/realm.json),
+      # so the file pins neither a secret nor a hostname.
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set the handout-web client secret in .env}
+      HANDOUT_DOMAIN: ${HANDOUT_DOMAIN:?set the publisher domain in .env, e.g. handout.example.com}
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    volumes:
+      # Imported once. A later edit of the file changes nothing: the boot import
+      # skips a realm that already exists.
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    # A departure from the local compose: no published port. Caddy fronts it.
+    healthcheck:
+      # The image has no curl; bash opens the socket itself. /health/ready is on
+      # the management port and 503s until the realm import is done.
+      test:
+        [
+          CMD-SHELL,
+          "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; grep -q '200 OK' <&3",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  app:
+    # A pinned version rather than `latest`, so the same product comes up
+    # tomorrow as today.
+    image: ghcr.io/thorque/handout-app:0.2.0
+    # The OIDC discovery document is fetched at start, so an application that
+    # comes up before the realm import is finished aborts and is restarted here
+    # until it succeeds.
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      # Not 127.0.0.1: Caddy reaches this from another container.
+      BIND_ADDRESS: 0.0.0.0
+      DATABASE_URL: postgresql://handout:${POSTGRES_PASSWORD:?set the application database password in .env}@postgres:5432/handout
+      HANDOUT_DATA_DIR: /data
+      MAX_UPLOAD_BYTES: "524288000"
+      OIDC_ISSUER_URL: https://${KEYCLOAK_DOMAIN:?set the identity provider name in .env, e.g. id.handout.example.com}/realms/handout
+      OIDC_BACKCHANNEL_URL: http://keycloak:8080/realms/handout
+      OIDC_CLIENT_ID: handout-web
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set the handout-web client secret in .env}
+      # True on purpose: the only plain-HTTP request in this deployment is the
+      # container-to-container hop to Keycloak inside the compose network (the
+      # back channel of docs/adr/0005); everything the browser touches is
+      # HTTPS. Set it to false when your provider is reachable over HTTPS from
+      # the application.
+      OIDC_ALLOW_INSECURE_HTTP: "true"
+      SESSION_SECRET: ${SESSION_SECRET:?set the session signing secret in .env}
+      SESSION_COOKIE_SECURE: "true"
+    healthcheck:
+      # The image carries no curl; node fetches its own health route.
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/.handout/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - handout-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      data-owner:
+        condition: service_completed_successfully
+      # service_started, not service_healthy: the restart policy above is what
+      # waits for the provider.
+      keycloak:
+        condition: service_started
+
+  caddy:
+    image: caddy:2
+    # No `--watch`: the config is fixed for the life of the container.
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    environment:
+      # A departure from the catalog block: no site port variable, because this
+      # Caddyfile carries names instead of a bare port.
+      ACME_EMAIL: ${ACME_EMAIL:?set the Lets Encrypt contact address in .env}
+      HANDOUT_DOMAIN: ${HANDOUT_DOMAIN:?set the publisher domain in .env, e.g. handout.example.com}
+      KEYCLOAK_DOMAIN: ${KEYCLOAK_DOMAIN:?set the identity provider name in .env, e.g. id.handout.example.com}
+      APP_HOST: app
+      APP_PORT: "3000"
+      KEYCLOAK_HOST: keycloak
+      KEYCLOAK_PORT: "8080"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    ports:
+      # Port 80 as well: the ACME HTTP-01 challenge and the HTTP to HTTPS
+      # redirect both need it. 443/udp is HTTP/3.
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    depends_on:
+      app:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    healthcheck:
+      # A TCP connect, not an HTTP request: this answers "is Caddy listening",
+      # and any HTTP probe would answer for the application instead.
+      test: [CMD, nc, -z, localhost, "443"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  # The published artifacts, one directory per address. Lost with it: every
+  # handout's content.
+  handout-data:
+  # The handouts, their addresses and their passwords. Lost with it: every
+  # handout and every address.
+  postgres-data:
+  # Keycloak's users, sessions and everything its realm gained at runtime. Lost
+  # with it: every publisher's account.
+  keycloak-db-data:
+  # Certificates and OCSP staples. Losing it means every certificate is issued
+  # again, and that counts against Let's Encrypt's fifty new certificates a week.
+  caddy-data:

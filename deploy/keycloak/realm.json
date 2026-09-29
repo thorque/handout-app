@@ -1,0 +1,24 @@
+{
+  "realm": "handout",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "clients": [
+    {
+      "clientId": "handout-web",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "enabled": true,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://${HANDOUT_DOMAIN}/"
+      },
+      "redirectUris": ["https://${HANDOUT_DOMAIN}/auth/callback"],
+      "webOrigins": ["+"]
+    }
+  ]
+}

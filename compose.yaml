@@ -20,7 +20,7 @@ services:
   # it can write. Runs to completion before the application starts, and is a
   # no-op on every later start.
   data-owner:
-    image: ghcr.io/thorque/handout-app:0.1.0
+    image: ghcr.io/thorque/handout-app:0.2.0
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
     command: ["chown -R node:node /data"]
@@ -81,10 +81,7 @@ services:
   app:
     # Never `build:`. A pinned version rather than `latest`, so this brings up
     # the same product tomorrow as today; the README says how to move.
-    image: ghcr.io/thorque/handout-app:0.1.0
-    # The process installs no signal handler, so it needs an init to stop on
-    # SIGTERM (see the Dockerfile).
-    init: true
+    image: ghcr.io/thorque/handout-app:0.2.0
     # The OIDC discovery document is fetched at start, so an application that
     # comes up before the realm import is finished aborts. It is restarted here
     # until it succeeds — one or two "Could not fetch OIDC discovery document"
@@ -108,6 +105,18 @@ services:
       OIDC_ALLOW_INSECURE_HTTP: "true"
       SESSION_SECRET: local-development-session-secret-not-a-secret
       SESSION_COOKIE_SECURE: "false"
+    healthcheck:
+      # The image carries no curl; node fetches its own health route.
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/.handout/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     volumes:
       - handout-data:/data
     depends_on:
@@ -143,7 +152,8 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     healthcheck:
       # A TCP connect, not an HTTP request: this answers "is Caddy listening",
       # and any HTTP probe would answer for the application instead.

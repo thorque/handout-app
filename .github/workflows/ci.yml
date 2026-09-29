@@ -52,11 +52,35 @@ jobs:
       - run: npm run format:check
       - run: npm test
 
-  # The image. `needs: test` is the whole gate: there is no second path to the
-  # registry, so an image can only ever exist for a tree that passed the
-  # checks above.
+  # The production Caddyfile runs nowhere in development, so nothing else
+  # exercises it: an unknown directive or a misplaced block would surface at the
+  # operator's first deployment. The image is the one both compose files run,
+  # and the values are dummies that only keep substitution from emptying the
+  # config.
+  validate-caddy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate both Caddyfiles
+        run: |
+          for file in caddy/Caddyfile deploy/caddy/Caddyfile; do
+            docker run --rm -v "$PWD":/w -w /w \
+              -e CADDY_SITE_ADDRESS=:8080 \
+              -e HANDOUT_DOMAIN=handout.example.com \
+              -e KEYCLOAK_DOMAIN=id.handout.example.com \
+              -e ACME_EMAIL=ops@example.com \
+              -e APP_HOST=app -e APP_PORT=3000 \
+              -e KEYCLOAK_HOST=keycloak -e KEYCLOAK_PORT=8080 \
+              caddy:2 caddy validate --adapter caddyfile --config "$file"
+          done
+
+  # The image. `needs` is the whole gate, and it is two jobs since the
+  # production Caddyfile is checked on its own: there is no second path to the
+  # registry, so an image can only ever exist for a tree that passed every
+  # check above.
   publish:
-    needs: test
+    needs: [test, validate-caddy]
     # Pushes to main and to a release tag, nothing else. A pull request must
     # not write to the registry, and building every branch would fill it with
     # images nobody pulls.

@@ -280,22 +280,52 @@ test("the deployment guide names every variable a production operator fills", ()
   }
 });
 
-test("the deployment guide names every bind-mount path of the compose", () => {
-  const paths = new Set(
-    [
-      ...composeCode.matchAll(
-        /\$\{HANDOUT_STATE_DIR:\?[^}]*\}\/([a-z][a-z0-9-]*):/g,
-      ),
-    ].map((match) => match[1]),
-  );
-  assert.equal(paths.size, 4);
-  for (const path of paths) {
+test("the artifacts are the one bind mount, the databases and Caddy's store are named volumes, and the guide names each", () => {
+  // The only host path is the artifacts directory, from one variable.
+  const binds = [
+    ...composeCode.matchAll(
+      /^\s+- "?(\$\{HANDOUT_[A-Z_]+_DIR:\?[^}]*\})[^:\n]*:\/data"?$/gm,
+    ),
+  ].map((match) => match[1]);
+  assert.equal(binds.length, 2, "data-owner and app mount the artifacts");
+  for (const bind of binds) {
+    assert.match(bind, /^\$\{HANDOUT_ARTIFACTS_DIR:\?/);
+  }
+  assert.doesNotMatch(composeCode, /HANDOUT_STATE_DIR/);
+  // A bind mount of a database is refused by PostgreSQL on Docker Desktop
+  // (docs/adr/0033), so a database and Caddy's store must be volumes.
+  const volumes = new Map([
+    ["postgres", "postgres-data"],
+    ["keycloak-db", "keycloak-db-data"],
+    ["caddy", "caddy-data"],
+  ]);
+  for (const [service, volume] of volumes) {
+    assert.match(
+      serviceBlock(composeCode, service),
+      new RegExp(`^\\s+- ${volume}:/`, "m"),
+      `${service} does not mount the named volume ${volume}`,
+    );
+    assert.match(
+      composeCode,
+      new RegExp(`^volumes:[\\s\\S]*^  ${volume}:$`, "m"),
+    );
     assert.ok(
-      guide.includes(`$HANDOUT_STATE_DIR/${path}`),
-      `docs/deployment.md does not mention $HANDOUT_STATE_DIR/${path}`,
+      guide.includes(`handout_${volume}`),
+      `docs/deployment.md does not name the volume handout_${volume}`,
     );
   }
-  assert.doesNotMatch(composeCode, /^volumes:/m, "named volumes are back");
+  assert.ok(guide.includes("$HANDOUT_ARTIFACTS_DIR"));
+});
+
+test("the deployment guide says how to back up and restore each database, and what losing Caddy's store costs", () => {
+  assert.match(guide, /pg_dump -U handout -d handout/);
+  assert.match(guide, /pg_dump -U keycloak -d keycloak/);
+  assert.match(guide, /pg_restore -U handout -d handout/);
+  assert.match(guide, /pg_restore -U keycloak -d keycloak/);
+  assert.match(guide, /A copy of a running PostgreSQL's files is not a backup/);
+  assert.doesNotMatch(guide, /one `tar` or `rsync` of that path/);
+  assert.match(guide, /Let's Encrypt's weekly limit/);
+  assert.match(guide, /roughly fifty active handouts/);
 });
 
 test("Keycloak's health check has a start period, and the guide names the repair for an empty administrator", () => {
@@ -305,7 +335,7 @@ test("Keycloak's health check has a start period, and the guide names the repair
   );
   // The compose cannot require these (scenario 3 has no Keycloak), so the
   // guide has to say what an empty value does and how to get out of it.
-  assert.match(guide, /rm -rf "\$HANDOUT_STATE_DIR\/keycloak-db"/);
+  assert.match(guide, /docker volume rm handout_keycloak-db-data/);
   assert.match(guide, /KC_BOOTSTRAP_ADMIN_PASSWORD/);
 });
 

@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: accepted
+Status: partly superseded by ADR 0033
 
 ## Context
 

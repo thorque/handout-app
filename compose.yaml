@@ -34,11 +34,18 @@
 #
 # It needs Docker Compose 2.20.0 or later, for `required: false` on depends_on.
 #
-# Everything that must survive lives under one directory, HANDOUT_STATE_DIR, so
-# one `tar` or `rsync` of it is the whole backup. The container_name values are
-# fixed so `docker ps` on a shared machine says what each container is. That
-# rules out two of these side by side on one host, which the published ports
-# already do: one host runs one Handout.
+# What must survive is kept in two different ways, on purpose. The published
+# artifacts are a bind mount at HANDOUT_ARTIFACTS_DIR: files an operator wants
+# to see and copy. Both PostgreSQL data directories and Caddy's certificate store
+# are named volumes (postgres-data, keycloak-db-data, caddy-data): a bind mount
+# is owned by whoever the host maps it to, and Docker Desktop on macOS and
+# Windows maps it to the host user, so PostgreSQL refuses to initialise in it
+# ("data directory has wrong ownership", docs/adr/0033). A database is backed up
+# with pg_dump in any case, never by copying its files while it runs
+# (docs/deployment.md, "What must persist, and what to back up"). The
+# container_name values are fixed so `docker ps` on a shared machine says what
+# each container is. That rules out two of these side by side on one host, which
+# the published ports already do: one host runs one Handout.
 name: handout
 
 services:
@@ -55,7 +62,7 @@ services:
     volumes:
       # The published artifacts, one directory per address. Lost with it: every
       # handout's content.
-      - "${HANDOUT_STATE_DIR:?set the base directory of all persistent state in .env, e.g. /srv/handout}/artifacts:/data"
+      - "${HANDOUT_ARTIFACTS_DIR:?set the directory the published artifacts are kept in in .env, e.g. /srv/handout/artifacts}:/data"
 
   postgres:
     container_name: handout-db
@@ -78,7 +85,7 @@ services:
       # The mount is the image's VOLUME. PGDATA (/var/lib/postgresql/18/docker)
       # lies below it; the entrypoint runs as root, creates it and hands it to
       # the postgres user.
-      - "${HANDOUT_STATE_DIR:?set the base directory of all persistent state in .env, e.g. /srv/handout}/postgres:/var/lib/postgresql"
+      - postgres-data:/var/lib/postgresql
     ports:
       # Published on the loopback interface of the host, for the development
       # loop: the application runs from source on the host and reaches its
@@ -104,7 +111,7 @@ services:
     volumes:
       # Keycloak's users, sessions and everything its realm gained at runtime.
       # Lost with it: every publisher's account.
-      - "${HANDOUT_STATE_DIR:?set the base directory of all persistent state in .env, e.g. /srv/handout}/keycloak-db:/var/lib/postgresql"
+      - keycloak-db-data:/var/lib/postgresql
     healthcheck:
       test: [CMD, pg_isready, -h, 127.0.0.1, -U, keycloak, -d, keycloak]
       interval: 5s
@@ -227,7 +234,7 @@ services:
       timeout: 5s
       retries: 12
     volumes:
-      - "${HANDOUT_STATE_DIR:?set the base directory of all persistent state in .env, e.g. /srv/handout}/artifacts:/data"
+      - "${HANDOUT_ARTIFACTS_DIR:?set the directory the published artifacts are kept in in .env, e.g. /srv/handout/artifacts}:/data"
     depends_on:
       postgres:
         condition: service_healthy
@@ -275,8 +282,8 @@ services:
       - ./caddy:/etc/caddy:ro
       # Certificates and OCSP staples. Losing it means every certificate is
       # issued again, and that counts against Let's Encrypt's fifty new
-      # certificates a week.
-      - "${HANDOUT_STATE_DIR:?set the base directory of all persistent state in .env, e.g. /srv/handout}/caddy:/data"
+      # certificates a week. A named volume, since nobody inspects it by hand.
+      - caddy-data:/data
     ports:
       # Caddy always listens on 80 and 443 inside; the env file says where the
       # host reaches them: 80 and 443 in production (port 80 for the ACME
@@ -300,3 +307,14 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
+
+volumes:
+  # The application's database. A named volume, not a bind mount: see the note
+  # at the top. Lost with it: every handout and every address. `docker compose
+  # down` keeps it, `down -v` and `docker volume rm` do not.
+  postgres-data:
+  # Keycloak's database (profile `keycloak`). Lost with it: every account.
+  keycloak-db-data:
+  # Caddy's certificate store. Lost with it: every certificate is requested
+  # again at once.
+  caddy-data:

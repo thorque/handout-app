@@ -63,7 +63,7 @@ and Caddy itself. Everything here runs on the host. Name the workbench
 monoceros init handout --with-languages=node --with-services=postgres,caddy,keycloak --with-repos=https://github.com/thorque/handout-app.git --with-ports=3000
 ```
 
-That writes `$MONOCEROS_HOME/container-configs/handout.yml`. Two of its services
+That writes `~/.monoceros/container-configs/handout.yml`. Two of its services
 need something this project brings along, so edit it before applying.
 
 **Caddy** has to read `caddy/Caddyfile`, so mount the directory holding it,

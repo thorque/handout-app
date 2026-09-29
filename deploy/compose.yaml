@@ -105,8 +105,7 @@ services:
     # tomorrow as today.
     image: ghcr.io/thorque/handout-app:0.2.0
     # The OIDC discovery document is fetched at start, so an application that
-    # comes up before the realm import is finished aborts and is restarted here
-    # until it succeeds.
+    # aborts on a provider that went away later is restarted here.
     restart: unless-stopped
     environment:
       PORT: "3000"
@@ -146,10 +145,10 @@ services:
         condition: service_healthy
       data-owner:
         condition: service_completed_successfully
-      # service_started, not service_healthy: the restart policy above is what
-      # waits for the provider.
+      # Healthy, not merely started: the discovery document is fetched at start,
+      # and Keycloak needs a while to create its schema and import the realm.
       keycloak:
-        condition: service_started
+        condition: service_healthy
 
   caddy:
     image: caddy:2

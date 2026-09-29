@@ -111,7 +111,7 @@ missing value aborts the start and names itself.
 | Variable | What it is for |
 | --- | --- |
 | `CADDY_SITE_ADDRESS` | the address the local Caddyfile (`caddy/Caddyfile`) serves; in development it is just a port. Only that file reads it. |
-| `HANDOUT_DOMAIN`, `KEYCLOAK_DOMAIN`, `ACME_EMAIL` | read by the production Caddyfile (`deploy/caddy/Caddyfile`): the two names it serves and the address Let's Encrypt writes to. See the operator chapter above. |
+| `HANDOUT_DOMAIN`, `KEYCLOAK_DOMAIN`, `ACME_EMAIL` | read by the production Caddyfile (`deploy/caddy/Caddyfile`): the two names it serves and the address Let's Encrypt writes to. See `deploy/README.md`. |
 | `APP_HOST`, `APP_PORT` | where Caddy reaches the application |
 | `KEYCLOAK_HOST`, `KEYCLOAK_PORT` | where the production Caddyfile reaches the identity provider |
 

@@ -15,7 +15,8 @@
 #
 # The development loop runs the application from source and everything else
 # from this file, with the .env.example at the repository root: `npm run dev`
-# (scripts/dev.sh, README.md).
+# (scripts/dev.sh, README.md). Its .env also names compose.dev.yaml, which adds
+# the one thing only that loop needs: PostgreSQL published on the host.
 #
 # The env file decides four things. Which Caddy site file is used
 # (CADDY_SITES, caddy/Caddyfile), which host ports Caddy is published on
@@ -42,7 +43,7 @@
 # Windows maps it to the host user, so PostgreSQL refuses to initialise in it
 # ("data directory has wrong ownership", docs/adr/0033). A database is backed up
 # with pg_dump in any case, never by copying its files while it runs
-# (docs/deployment.md, "What must persist, and what to back up"). The
+# (docs/deployment.md, "What must persist"). The
 # container_name values are fixed so `docker ps` on a shared machine says what
 # each container is. That rules out two of these side by side on one host, which
 # the published ports already do: one host runs one Handout.
@@ -86,13 +87,8 @@ services:
       # lies below it; the entrypoint runs as root, creates it and hands it to
       # the postgres user.
       - postgres-data:/var/lib/postgresql
-    ports:
-      # Published on the loopback interface of the host, for the development
-      # loop: the application runs from source on the host and reaches its
-      # database here. Nothing else uses it, and loopback only means nothing
-      # outside the machine can reach it. A port mapping cannot be switched off
-      # by a variable, so it is the same one everywhere, as Keycloak's is below.
-      - "127.0.0.1:5432:5432"
+    # No `ports:` here. The development loop publishes 5432 on the host's
+    # loopback through compose.dev.yaml, which its .env names in COMPOSE_FILE.
     restart: unless-stopped
 
   # Keycloak's own database, never the application's: it owns about ninety
@@ -315,6 +311,7 @@ volumes:
   postgres-data:
   # Keycloak's database (profile `keycloak`). Lost with it: every account.
   keycloak-db-data:
-  # Caddy's certificate store. Lost with it: every certificate is requested
-  # again at once.
+  # Caddy's certificate store. Lost with it: the two named hosts are obtained
+  # again at start, and every handout's certificate when a request for that
+  # address next arrives.
   caddy-data:

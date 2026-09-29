@@ -35,6 +35,9 @@ What you need:
   internet**. Without the ports no certificate is ever issued. No access to the
   DNS zone, no API token, no certificate file that anybody touches: Caddy obtains
   a certificate for every name it serves, by itself, from Let's Encrypt.
+- **For the production scenarios, 2 and 3: OpenSSL** (`openssl version`) on the
+  machine where you run the env blocks below, which call `openssl rand` to
+  generate the secrets.
 
 ## Which scenario takes which files
 
@@ -100,6 +103,7 @@ Before you start:
   `*.handout.example.com`. The Keycloak's `id.handout.example.com` is covered by
   the wildcard record, which is why two are enough.
 - Ports 80 and 443 reachable from the internet.
+- OpenSSL, for the `openssl rand` calls in the block below.
 
 Clone the repository to the machine, then run the block below in its root.
 **Edit the first sed command before you run it**: the two domains, the address
@@ -175,6 +179,7 @@ Before you start:
   redirect URI `https://handout.example.com/auth/callback`, post-logout redirect
   URI `https://handout.example.com/` (your own domain in both). That gives you
   the three values below.
+- OpenSSL, for the `openssl rand` calls in the block below.
 
 Clone the repository to the machine, then run the block below in its root.
 **Edit the first sed command before you run it**: the domain, the address Let's
@@ -245,7 +250,7 @@ required, and the rest of the files is described in the README's
 | `HANDOUT_DOMAIN` | 2, 3 | the domain the publisher interface answers on, e.g. `handout.example.com`; a handout is `<address>.<this>` |
 | `KEYCLOAK_DOMAIN` | 2 | the name the identity provider answers on, e.g. `id.handout.example.com`; the env file derives `KC_HOSTNAME` and `OIDC_ISSUER_URL` from it |
 | `ACME_EMAIL` | 2, 3 | where Let's Encrypt sends expiry and policy notices |
-| `HANDOUT_ARTIFACTS_DIR` | 2, 3 | the directory the published artifacts are kept in, e.g. `/srv/handout/artifacts`; the databases and Caddy's store are named volumes (see "What must persist, and what to back up") |
+| `HANDOUT_ARTIFACTS_DIR` | 2, 3 | the directory the published artifacts are kept in, e.g. `/srv/handout/artifacts`; the databases and Caddy's store are named volumes (see "What must persist") |
 | `POSTGRES_PASSWORD` | 2, 3 | the password of the application's database. Compose puts it unencoded into a connection URL, so a value you choose yourself must avoid the characters with a special meaning there: `@`, `/`, `:` and `#`. The blocks generate hex, which cannot contain them; the caution stays for a `.env` a pipeline renders from its own secret store |
 | `KC_DB_PASSWORD` | 2 | the password of Keycloak's own database |
 | `KC_BOOTSTRAP_ADMIN_USERNAME` | 2 | the temporary administrator of the identity provider's console, used once |
@@ -294,12 +299,10 @@ Keycloak's port 8080 is also published on the host's loopback interface as
 `127.0.0.1:8081`. Production does not use it, and nothing outside the machine can
 reach it; the same compose serves the local trial, which does.
 
-The application's PostgreSQL is likewise published on `127.0.0.1:5432`, for
-developers who run the application from source against this compose. Production
-does not use it either, and nothing outside the machine can reach it; if the
-machine already runs a PostgreSQL on that port, the start fails on the
-conflict, and the compose file's `ports:` entry of `postgres` is the line to
-change.
+The application's PostgreSQL is not published on the host in any of the three
+scenarios. Only the development loop publishes it, on `127.0.0.1:5432`, through
+`compose.dev.yaml`, so a PostgreSQL that already runs on the production machine
+does not get in the way.
 
 The realm has `sslRequired` set to `external`, not `all`. Keycloak's `all`
 demands TLS from every address, including the application's back-channel hop over
@@ -314,17 +317,22 @@ post-logout URI in the admin console by hand.
 In scenario 3 there is no first sign-in to prepare: whoever your provider lets in
 can publish.
 
-### What must persist, and what to back up
+### What must persist
 
-Four things must survive. Three of them are Docker named volumes, one is a
-directory you choose, and a backup is not the same act for each:
+Four things hold state, and all four must survive an update and a restart. Three
+of them are Docker named volumes, one is a directory you choose:
 
 | What | Where | Lost with it |
 | --- | --- | --- |
 | the published artifacts | the directory `HANDOUT_ARTIFACTS_DIR` (`/srv/handout/artifacts` is a sensible choice), a bind mount | the content of every handout |
 | the application's database | the volume `handout_postgres-data` | every handout, address and password |
 | Keycloak's database | the volume `handout_keycloak-db-data` (scenario 2 only) | the publishers' accounts |
-| Caddy's certificate store | the volume `handout_caddy-data` | every certificate, see below |
+| Caddy's certificate store | the volume `handout_caddy-data` | the certificates obtained so far, see below |
+
+All four survive `docker compose down`, a restart and an upgrade. The volumes do
+not survive `docker compose down -v`, `docker volume rm` or `docker volume prune`
+run while the stack is stopped. `.env` is not state, but it holds the secrets the
+databases were created with, so keep a copy of it too.
 
 Why the databases are volumes and not directories you can see: a bind mount is
 owned by whoever the host maps it to. Docker Desktop on macOS and Windows maps it
@@ -334,56 +342,12 @@ Docker and has no such problem on any platform (ADR 0033 in `docs/adr/`). The
 artifacts are plain files and stay a directory, because that is what you want to
 see and copy.
 
-**A copy of a running PostgreSQL's files is not a backup**, on any platform: it
-is taken while pages are being written and may not start, or start with a
-corrupt database. A database is backed up by dumping it. Take the dumps first and
-copy the artifacts second: the other way round, a handout published in between
-has a row and no bytes, which is worse than bytes with no row.
-
-```sh
-BACKUP=/srv/backup/handout-$(date +%F)
-mkdir -p "$BACKUP"
-# The application's database, from the running container.
-docker exec handout-db pg_dump -U handout -d handout --format=custom > "$BACKUP/handout.dump"
-# Keycloak's database (scenario 2 only).
-docker exec handout-keycloak-db pg_dump -U keycloak -d keycloak --format=custom > "$BACKUP/keycloak.dump"
-# The published artifacts: an ordinary directory, copy it as you copy any.
-rsync -a "$HANDOUT_ARTIFACTS_DIR/" "$BACKUP/artifacts/"
-```
-
-`.env` is not state, but keep a copy of it apart from the backup: it holds the
-secrets the databases were created with.
-
-**A backup nobody has restored is not a backup.** Restoring is the reverse, onto
-a machine with the same `.env`. Start only the databases, so that nothing has
-written to them yet, restore, then start the rest:
-
-```sh
-docker compose --env-file .env up -d --wait postgres keycloak-db   # keycloak-db: scenario 2 only
-docker exec -i handout-db pg_restore -U handout -d handout --clean --if-exists < "$BACKUP/handout.dump"
-docker exec -i handout-keycloak-db pg_restore -U keycloak -d keycloak --clean --if-exists < "$BACKUP/keycloak.dump"
-rsync -a "$BACKUP/artifacts/" "$HANDOUT_ARTIFACTS_DIR/"
-docker compose --env-file .env up -d
-```
-
-Try it once on a spare machine, before you need it.
-
-**Caddy's store is a volume that must survive too.** It is machine data nobody
-inspects by hand, and it is not part of a dump, but losing it has a price: every
-certificate is requested again at once, and past roughly fifty active handouts
-that exceeds Let's Encrypt's weekly limit, so some published addresses stay
-unreachable for days. It survives `docker compose down`, a restart and an
-upgrade. It does not survive `docker compose down -v`, `docker volume rm`, or
-`docker volume prune` run while the stack is stopped. Archive it now and then
-with the rest:
-
-```sh
-docker run --rm -v handout_caddy-data:/data:ro -v "$BACKUP":/backup alpine \
-  tar czf /backup/caddy-data.tgz -C /data .
-```
-
-To restore it, extract the archive into the empty volume the same way, before
-Caddy starts.
+Losing Caddy's store does not reissue everything at once. The two named hosts,
+the publisher origin and the identity provider, are obtained again at startup,
+and a handout's certificate is obtained again only when a request for that
+address next arrives. The risk is traffic arriving for many addresses faster than
+the allowance refills (see "Three things that look like faults and are not"
+below): the addresses beyond it stay unreachable until it does.
 
 Nothing has to exist beforehand: Docker creates the volumes on the first start
 and the artifacts directory too. To choose the owner and mode of that directory
@@ -431,13 +395,15 @@ deliberate step per person. Decide this before starting with Keycloak, not after
   certificate is being obtained in that moment. Ports 80 and 443 must be
   reachable from outside for that to work at all: without them no certificate is
   ever issued and every address fails at the handshake.
-- **The limit is at most 48 new handouts per week, not 50 handouts.** Let's
-  Encrypt issues 50 new certificates per registered domain per 7 days (checked
-  on 2026-09-28). The certificates for the publisher origin and for the identity
-  provider come out of the same allowance, so the first week has at most 48 left.
-  Renewals are exempt (ARI), so a handout that exists costs nothing more however
-  many there are and however long they live. A raise can be applied for at Let's
-  Encrypt through a form.
+- **The allowance for new handouts is 49 or 48 a week at the start, not 50.**
+  Let's Encrypt allows 50 new certificates per registered domain per 7 days
+  (checked on 2026-09-28). The deployment spends one on the publisher origin,
+  and a second on the identity provider when the bundled Keycloak runs, so what
+  is left for handouts is 49 in scenario 3 and 48 in scenario 2. The allowance
+  refills over the window, not at a weekly boundary: a certificate obtained now
+  frees its place seven days from now. Renewals are exempt (ARI), so a handout
+  that exists costs nothing more however many there are and however long they
+  live. A raise can be applied for at Let's Encrypt through a form.
 - **The limit is per registered domain, not per hostname.** Every other service
   under the same registered domain that obtains Let's Encrypt certificates draws
   from the same 50. Whoever puts Handout under a domain already in use for other

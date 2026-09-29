@@ -1,0 +1,11 @@
+# Added to compose.yaml by the development loop only, through COMPOSE_FILE in
+# its .env (.env.example). The three deployment scenarios do not name it, so
+# they do not publish this port and a PostgreSQL already running on the host
+# does not stop Handout from starting.
+services:
+  postgres:
+    ports:
+      # Published on the loopback interface of the host: the application runs
+      # from source on the host and reaches its database here. Loopback only
+      # means nothing outside the machine can reach it.
+      - "127.0.0.1:5432:5432"

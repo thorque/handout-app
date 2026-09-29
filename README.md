@@ -56,14 +56,23 @@ services it started and keeps their data, `npm run dev:down -- -v` discards it.
 Not needed: the three lines above work anywhere. If you use
 [Monoceros](https://getmonoceros.build), a workbench brings PostgreSQL, Keycloak
 and Caddy itself. Name it `handout`, because the realm fixture registers
-`handout.localhost` and `handout-caddy.localhost`. On the host:
+`handout.localhost` and `handout-caddy.localhost`. The commands run on the host;
+the first and third are in the block further down. Between them, edit the yml (`$MONOCEROS_HOME/container-configs/handout.yml`), each part
+under the service it names, and put the three values in `handout.env` beside it.
 
-```sh
-monoceros init handout --with-languages=node --with-services=postgres,caddy,keycloak --with-repos=https://github.com/thorque/handout-app.git --with-ports=3000
-```
+Caddy needs to read `caddy/Caddyfile`, so the directory holding it is mounted
+read-only at `/etc/caddy`. Mount the directory, not the single file: Docker
+tracks a single file by inode, and a save that replaces it would never reach
+Caddy. The three values tell that Caddyfile which port to listen on and where the
+application runs: `workspace` is the name the workbench container answers to on
+the Docker network, and `3000` is the port the application listens on. The
+`env:` block is what hands them from `handout.env` to the Caddy container.
 
-Then add this to the yml (`$MONOCEROS_HOME/container-configs/handout.yml`), each
-part under the service it names, and the three values to `handout.env` beside it:
+Keycloak needs the realm fixture, `keycloak/realm.json`, mounted into its import
+directory. It imports every file there when it starts, and its database is
+rebuilt on each apply, so this file is what gives the workbench a realm with the
+client and the user `miriam` to sign in with. Mount the single file under a name
+of its own, and never the whole directory.
 
 ```yaml
 # under the caddy service
@@ -85,22 +94,21 @@ APP_PORT=3000
 ```
 
 Nothing else configures Caddy: with no `CADDY_SITES` set, `caddy/Caddyfile`
-imports `sites/local.caddyfile`. Build it and go in:
+imports `sites/local.caddyfile`. Build the workbench, then start the app in it,
+all from the host:
 
 ```sh
+monoceros init handout --with-languages=node --with-services=postgres,caddy,keycloak --with-repos=https://github.com/thorque/handout-app.git --with-ports=3000
+# edit the yml
 monoceros apply handout
-monoceros shell handout
+monoceros run handout --in=projects/handout-app -- npm run dev:monoceros
 ```
 
-In `projects/handout-app`, copy the workbench's values into `.env`, then start
-the app through its launch config (`.monoceros/launch.json`):
-
-```sh
-# Overwrites an existing .env.
-cp .env.monoceros.example .env
-npm install
-monoceros-ctl start handout-app   # on the host: monoceros start handout handout-app
-```
+`npm run dev:monoceros` copies `.env.monoceros.example` to `.env` (an existing
+`.env` is left alone), runs `npm install` and starts the app through its launch
+config (`.monoceros/launch.json`) with `monoceros-ctl`. `monoceros run` hands
+everything after `--` to the container as it stands, with no shell in between, so
+the whole start is one npm script.
 
 Do not use `npm run dev` there: the workbench has the services already.
 `http://handout-caddy.localhost` is Caddy in front of the application and

@@ -42,8 +42,8 @@ The deployment's nine, in `.env.example`:
 | `ACME_EMAIL` | where Let's Encrypt sends expiry and policy notices |
 | `POSTGRES_PASSWORD` | the password of the application's database. It ends up inside a connection URL, so it must not contain characters with a special meaning there: `@`, `/`, `:` and `#` in particular |
 | `KC_DB_PASSWORD` | the password of Keycloak's own database |
-| `KC_BOOTSTRAP_ADMIN_USERNAME` | the first administrator of the identity provider's console |
-| `KC_BOOTSTRAP_ADMIN_PASSWORD` | that administrator's password, to be changed at the first sign-in |
+| `KC_BOOTSTRAP_ADMIN_USERNAME` | the temporary administrator of the identity provider's console, used once (see the first start) |
+| `KC_BOOTSTRAP_ADMIN_PASSWORD` | that account's password |
 | `OIDC_CLIENT_SECRET` | the secret of the `handout-web` client, read by the realm import and by the application |
 | `SESSION_SECRET` | signs the session cookie of the application |
 
@@ -51,16 +51,31 @@ The Caddyfile in `caddy/` also reads `APP_HOST`, `APP_PORT`,
 `KEYCLOAK_HOST` and `KEYCLOAK_PORT`; the compose sets them to the service names
 and ports of the containers, and there is nothing to choose.
 
-The application's own twelve are in the
-[configuration table](../README.md#configuration) of the main README, and the
-compose fills them. Three differ from the [local compose](../compose.yaml), for
-a reason each:
+The application itself requires twelve, and the compose sets them:
+
+| Variable | Value in this compose |
+| --- | --- |
+| `PORT` | `3000` |
+| `BIND_ADDRESS` | `0.0.0.0` |
+| `DATABASE_URL` | the `postgres` service, with `POSTGRES_PASSWORD` |
+| `HANDOUT_DATA_DIR` | `/data`, the `handout-data` volume |
+| `MAX_UPLOAD_BYTES` | `524288000` (500 MB) |
+| `OIDC_ISSUER_URL` | `https://<KEYCLOAK_DOMAIN>/realms/handout` |
+| `OIDC_BACKCHANNEL_URL` | `http://keycloak:8080/realms/handout` |
+| `OIDC_CLIENT_ID` | `handout-web` |
+| `OIDC_CLIENT_SECRET` | from `.env` |
+| `OIDC_ALLOW_INSECURE_HTTP` | `true` |
+| `SESSION_SECRET` | from `.env` |
+| `SESSION_COOKIE_SECURE` | `true` |
+
+Three differ from the local compose at the root of the repository, for a reason
+each:
 
 - `SESSION_COOKIE_SECURE` is `true`, because every request the browser makes is
   HTTPS here.
 - `OIDC_ALLOW_INSECURE_HTTP` stays `true`. The one plain-HTTP request in this
   deployment is the application's hop to Keycloak inside the compose network
-  (`OIDC_BACKCHANNEL_URL`, `../docs/adr/0005-oidc-two-origins-and-stateless-session.md`),
+  (`OIDC_BACKCHANNEL_URL`, ADR 0005 in the repository's `docs/adr/`),
   which never leaves the host. Set it to `false` when your provider is reachable
   over HTTPS from the application.
 - `OIDC_ISSUER_URL` is `https://<KEYCLOAK_DOMAIN>/realms/handout`, the identity
@@ -73,10 +88,15 @@ a reason each:
 The application runs its migrations, Keycloak imports the realm, and Caddy
 obtains the certificates for the two names it knows, the publisher origin and
 the identity provider. Then sign in to the admin console at
-`https://id.handout.example.com` with the bootstrap administrator, change that
-password, and create the publishers by hand in the realm `handout`. There is no
-self-registration and no mail: a publisher gets a temporary password set in the
-console.
+`https://id.handout.example.com` with the bootstrap administrator, once: create
+a permanent administrator in the `master` realm, check that you can sign in with
+it, and delete the bootstrap account. Only then create the publishers by hand in
+the realm `handout`. There is no self-registration and no mail: a publisher gets
+a temporary password set in the console.
+
+`KC_BOOTSTRAP_ADMIN_USERNAME` and `KC_BOOTSTRAP_ADMIN_PASSWORD` stay in the
+`.env` afterwards because the compose requires them; Keycloak reads them only on
+the first start against an empty database.
 
 The realm has `sslRequired` set to `external`, not `all`. Keycloak's `all`
 demands TLS from every address, including the application's back-channel hop
@@ -97,11 +117,12 @@ Four volumes, by the names in `compose.yaml`:
 - `postgres-data`: the application's database, with the handouts, their
   addresses and their passwords.
 - `keycloak-db-data`: Keycloak's database, with the publishers' accounts.
-- `caddy-data`: Caddy's certificate store. Losing it means every certificate is
-  issued again, and that does count against Let's Encrypt's weekly limit (see
-  below).
+- `caddy-data`: Caddy's certificate store, with every certificate issued so far
+  (see the weekly limit below).
 
-Back up the first three. The fourth is worth keeping for the reason given.
+Back up all four. Without `caddy-data` every certificate is requested again at
+once, and past roughly fifty active handouts that exceeds Let's Encrypt's weekly
+limit, so some published addresses stay unreachable for days.
 
 ## A newer version
 
@@ -112,7 +133,7 @@ Change the tag in `compose.yaml` (on `data-owner` and on `app`), then:
 
 Migrations run at start and have no way back, so take a backup of the database
 first. How versions are cut is in
-`../docs/adr/0027-the-version-is-a-git-tag.md`.
+ADR 0027 in the repository's `docs/adr/`.
 
 ## Three things that look like faults and are not
 
@@ -120,18 +141,24 @@ first. How versions are cut is in
   certificate is being obtained in that moment.
 - **Ports 80 and 443 must be reachable from outside**, or no certificate is
   ever issued and every address fails at the handshake.
-- **The limit is 50 new handouts per week, not 50 handouts.** Let's Encrypt
-  issues 50 new certificates per registered domain per 7 days (checked on
-  2026-09-28). Renewals are exempt, so a handout that exists costs nothing more
+- **The limit is at most 48 new handouts per week, not 50 handouts.** Let's
+  Encrypt issues 50 new certificates per registered domain per 7 days (checked
+  on 2026-09-28). The certificates for the publisher origin and for the identity
+  provider come out of the same allowance, so the first week has at most 48
+  left. Renewals are exempt (ARI), so a handout that exists costs nothing more
   however many there are and however long they live. A raise can be applied for
   at Let's Encrypt through a form.
+- **The limit is per registered domain, not per hostname.** Every other service
+  under the same registered domain that obtains Let's Encrypt certificates draws
+  from the same 50. Whoever puts Handout under a domain already in use for other
+  things has correspondingly fewer, and may hit the limit on the first day.
 
 ## What a change of identity provider costs
 
 Whoever starts with the shipped Keycloak and later moves to a company provider
 gets a new identifier for every person, and a handout's owner is exactly that
 identifier: the handouts published under Keycloak would be left without an
-owner. `../docs/adr/0017-the-owners-email-is-recorded-as-a-note.md` foresaw this
+owner. ADR 0017 in the repository's `docs/adr/` foresaw this
 and keeps `owner_email` as a note, so the operator can pull the new identifiers
 onto the old rows by hand, one deliberate step per person. Decide this before
 starting with Keycloak, not after.
@@ -148,7 +175,7 @@ What a proxy in front of the application must do:
   was ever issued, so a stranger cannot spend the weekly limit on made-up names.
   The publisher origin and the identity provider are not addresses; give them
   certificates the ordinary way, not through that question.
-- **Keep that path unreachable from outside**, as both Caddyfiles do (this directory's and the local one in `../caddy/`).
+- **Keep that path unreachable from outside**, as both Caddyfiles do (this directory's and the local one of the repository).
 
 The application itself is one container that needs nothing but its twelve
 variables, a PostgreSQL, and a volume for the data directory. What must persist
@@ -156,6 +183,5 @@ is the list above. The container answers `GET /.handout/health` with `200` when
 it can reach its database, and stops on `SIGTERM`.
 
 Why the deployment is a second example and not a parameterised first one:
-`../docs/adr/0030-the-production-deployment-is-a-second-example.md`. Why a
-certificate per address, and what it costs:
-`../docs/adr/0029-a-certificate-per-address-obtained-on-demand.md`.
+ADR 0030 in the repository's `docs/adr/`. Why a certificate per address, and
+what it costs: ADR 0029 there.

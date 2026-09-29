@@ -466,20 +466,20 @@ test("the README's development loop is three lines, and .env.example leaves noth
   }
 });
 
-test("the workbench block of the README is the four-line flow and names npm run dev:monoceros", () => {
-  const blocks = readmeBlocks.filter((b) => b.includes("dev:monoceros"));
-  assert.equal(blocks.length, 1);
-  const lines = blocks[0].trimEnd().split("\n");
-  assert.equal(lines.length, 4);
-  assert.match(lines[0], /^monoceros init handout /);
-  assert.equal(lines[2], "monoceros apply handout");
-  assert.equal(
-    lines[3],
+test("the workbench chapter gives its commands in the order they are run", () => {
+  // The commands come in the order they are run, each beside the step it
+  // belongs to: init writes the yml, so it cannot come after the edit.
+  const init = readme.indexOf("monoceros init handout ");
+  const edit = readme.indexOf("projects/handout-app/caddy:/etc/caddy:ro");
+  const apply = readme.indexOf("monoceros apply handout");
+  const run = readme.indexOf(
     "monoceros run handout --in=projects/handout-app -- npm run dev:monoceros",
   );
+  assert.ok(init > 0 && edit > init, "the yml edit comes before init");
+  assert.ok(apply > edit, "apply comes before the yml edit");
+  assert.ok(run > apply, "the run command comes before apply");
   // `monoceros run` has no shell in between, so nothing is chained after `--`.
   assert.doesNotMatch(readme, /--[^\n]*&&/);
-  assert.doesNotMatch(blocks[0], /env\/[a-z-]+\.env\.example/);
   assert.doesNotMatch(readme, /sed -i/);
 });
 

@@ -88,7 +88,8 @@ test("the deployment guide names the address, the sign-in and the provider the c
   assert.ok(guide.includes(ORIGIN));
   assert.ok(guide.includes("miriam"));
   assert.ok(guide.includes("http://localhost:8081"));
-  assert.ok(
-    guide.includes("docker compose --env-file env/local.env.example up"),
-  );
+  // The trial copies its env file like every other scenario, so a value
+  // changed for one run does not land in git.
+  assert.ok(guide.includes("cp env/local.env.example .env"));
+  assert.ok(guide.includes("docker compose --env-file .env up"));
 });

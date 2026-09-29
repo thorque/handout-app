@@ -52,12 +52,12 @@ described together at the end, under "What scenarios 2 and 3 share".
 You need Docker with Compose 2.20.0 or later and nothing else. Nothing here is
 a secret and nothing has to be filled: the env file's values are local
 development values in the open, for the reason `keycloak/README.md` gives for the
-realm fixture. There is no block for this scenario, because there is nothing to
-generate and nothing to copy; you run the env file as it stands. In a clone of
-this repository:
+realm fixture. Copy it anyway, like every other scenario - then a value you
+change for your own run stays out of git. In a clone of this repository:
 
 ```sh
-docker compose --env-file env/local.env.example up
+cp env/local.env.example .env
+docker compose --env-file .env up
 ```
 
 That brings up the publisher interface at `http://handout.localhost:8080/`.

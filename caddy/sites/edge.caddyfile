@@ -1,6 +1,6 @@
-# Scenario 4, and the base of scenario 3: Handout as the edge, with one
-# certificate per name obtained by Caddy itself and an identity provider that
-# is somebody else's. Nothing here obtains a wildcard certificate:
+# Production against an identity provider you have, and the base of production
+# with the bundled Keycloak: Handout as the edge, with one certificate per name
+# obtained by Caddy itself and an identity provider that is somebody else's. Nothing here obtains a wildcard certificate:
 # `*.{$HANDOUT_DOMAIN}` below is a hostname pattern that decides which requests
 # a site block answers, and every name it matches gets a certificate of its own.
 #

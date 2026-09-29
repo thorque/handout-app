@@ -1,5 +1,5 @@
-# Scenario 3: the edge of sites/edge.caddyfile, plus the bundled Keycloak under
-# a name of its own.
+# Production with the bundled Keycloak: the edge of sites/edge.caddyfile, plus
+# the bundled Keycloak under a name of its own.
 import edge.caddyfile
 
 {$KEYCLOAK_DOMAIN} {

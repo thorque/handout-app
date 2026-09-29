@@ -1,12 +1,12 @@
-# Scenarios 1 and 2: the workbench and the local Docker trial. No TLS, and one
-# site on a port; with no host name in the address, that one block answers for
+# The local Docker trial, the development loop, and any setup where another
+# proxy terminates the request in front of this Caddy. No TLS, and one site on
+# a port; with no host name in the address, that one block answers for
 # handout.localhost and for every <address>.handout.localhost under it, which
 # is what the application needs to hand out addresses that resolve.
 #
-# Both are the same file because nothing differs but the value: the workbench
-# proxy in front of the first hands this Caddy its port through
-# CADDY_SITE_ADDRESS, and compose.yaml sets it to :80 for the second, behind
-# the published 8080.
+# The address comes from CADDY_SITE_ADDRESS: compose.yaml's env files set it to
+# :80, behind the published 8080, and a proxy in front of this Caddy hands it
+# its own port the same way.
 {$CADDY_SITE_ADDRESS} {
 	import handout-app
 }

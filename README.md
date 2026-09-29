@@ -32,27 +32,109 @@ paste into a message.
 Updating a handout in place, deleting one and reissuing its password work too.
 Not there yet: the MCP endpoint for agents, and a mode for operators who cannot
 get a wildcard DNS entry. The application is published as a container image, and
-one compose file and one Caddyfile serve the four ways below (the workbench
-uses the Caddyfile only). The two production ways have been written against the
-documentation of their parts and not yet run against a real domain.
+one compose file and one Caddyfile serve the three deployments in
+`docs/deployment.md` and the development loop below. The two production ways
+have been written against the documentation of their parts and not yet run
+against a real domain.
 
-## Getting it running
+## Developing
 
-### Four ways to run it
+You need Node 22 or later and Docker with Compose 2.20.0 or later.
 
-There is one `caddy/Caddyfile` and one `compose.yaml`. What differs is a file
-of Caddy site blocks and an env file, and each scenario has exactly one of each:
+```sh
+cp .env.example .env
+npm install
+npm run dev
+```
 
-| # | Scenario | Env file | Caddy site file | Identity provider |
-| --- | --- | --- | --- | --- |
-| 1 | Developing in the Monoceros workbench | [`env/1-workbench.env.example`](env/1-workbench.env.example) | [`caddy/sites/local.caddyfile`](caddy/sites/local.caddyfile) | the workbench's Keycloak |
-| 2 | Trying it out locally with Docker | [`env/2-local.env.example`](env/2-local.env.example) | [`caddy/sites/local.caddyfile`](caddy/sites/local.caddyfile) | the bundled Keycloak |
-| 3 | Production, bundled Keycloak | [`env/3-production.env.example`](env/3-production.env.example) | [`caddy/sites/edge-keycloak.caddyfile`](caddy/sites/edge-keycloak.caddyfile) | the bundled Keycloak |
-| 4 | Production, an identity provider you have | [`env/4-production-external-idp.env.example`](env/4-production-external-idp.env.example) | [`caddy/sites/edge.caddyfile`](caddy/sites/edge.caddyfile) | yours, no Keycloak runs |
+Then open `http://handout.localhost:8080/` and sign in as `miriam` with the
+password `handout`. Ctrl+C stops the application; `npm run dev:down` stops the
+services it started.
 
-How to set up each of them, step by step, is in
-[`docs/deployment.md`](docs/deployment.md), including a block for each of them
-that fills in the env file where there is something to fill. Why it is built this way:
+## Developing in a Monoceros workbench (an alternative)
+
+Not needed: the three lines above work anywhere. If you use
+[Monoceros](https://getmonoceros.build), a workbench brings PostgreSQL, Keycloak
+and Caddy itself. Name it `handout`, because the realm fixture registers
+`handout.localhost` and `handout-caddy.localhost`. On the host:
+
+```sh
+monoceros init handout --with-languages=node --with-services=postgres,caddy,keycloak --with-repos=https://github.com/thorque/handout-app.git --with-ports=3000
+```
+
+Then add this to the yml (`$MONOCEROS_HOME/container-configs/handout.yml`), each
+part under the service it names, and the three values to `handout.env` beside it:
+
+```yaml
+# under the caddy service
+volumes:
+  - projects/handout-app/caddy:/etc/caddy:ro
+env:
+  CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS}
+  APP_HOST: ${APP_HOST}
+  APP_PORT: ${APP_PORT}
+# under the keycloak service
+volumes:
+  - projects/handout-app/keycloak/realm.json:/opt/keycloak/data/import/handout-app.json:ro
+```
+
+```
+CADDY_SITE_ADDRESS=:81
+APP_HOST=workspace
+APP_PORT=3000
+```
+
+Nothing else configures Caddy: with no `CADDY_SITES` set, `caddy/Caddyfile`
+imports `sites/local.caddyfile`. Build it and go in:
+
+```sh
+monoceros apply handout
+monoceros shell handout
+```
+
+In `projects/handout-app`, fill `.env` from the environment the workbench
+exports, then start the app through its launch config
+(`.monoceros/launch.json`):
+
+```sh
+# Overwrites an existing .env.
+cp .env.example .env
+sed -i.bak \
+  -e "s|^DATABASE_URL=.*|DATABASE_URL=$POSTGRES_URL|" \
+  -e "s|^OIDC_ISSUER_URL=.*|OIDC_ISSUER_URL=$KEYCLOAK_PUBLIC_URL/realms/handout|" \
+  -e "s|^OIDC_BACKCHANNEL_URL=.*|OIDC_BACKCHANNEL_URL=$KEYCLOAK_URL/realms/handout|" \
+  -e "s|^POSTGRES_URL=.*|POSTGRES_URL=$POSTGRES_URL|" \
+  .env
+rm -f .env.bak
+npm install
+monoceros-ctl start handout-app   # on the host: monoceros start handout handout-app
+```
+
+Do not use `npm run dev` there: the workbench has the services already.
+`http://handout-caddy.localhost` is Caddy in front of the application and
+`http://handout.localhost` the application directly (`monoceros port handout`
+lists the routes). The routing knows exact host names only, so reach a handout's
+address `<address>.handout.localhost` through a tunnel to Caddy:
+
+```sh
+monoceros tunnel handout caddy   # then http://<address>.handout.localhost:81/
+```
+
+`monoceros share handout handout-app` opens the app to another device over HTTPS.
+
+## Running it, in production or to try it
+
+How to run a released Handout, and how to try it on one machine with nothing but
+Docker, is one document: [`docs/deployment.md`](docs/deployment.md). It has
+three scenarios, each with its env file and a block that fills it in:
+
+| Scenario | Env file | Identity provider |
+| --- | --- | --- |
+| Trying it out locally with Docker | [`env/local.env.example`](env/local.env.example) | the bundled Keycloak |
+| Production, bundled Keycloak | [`env/production.env.example`](env/production.env.example) | the bundled Keycloak |
+| Production, an identity provider you have | [`env/production-external-idp.env.example`](env/production-external-idp.env.example) | yours, no Keycloak runs |
+
+Why it is built this way, with one Caddyfile and one compose:
 `docs/adr/0032-one-caddyfile-one-compose-four-scenarios.md`.
 
 ## Configuration
@@ -60,26 +142,29 @@ that fills in the env file where there is something to fill. Why it is built thi
 Every value comes from an environment variable, and there are no defaults: a
 missing value aborts the start and names itself.
 
-The deployment around the application, in the env files of scenarios 2 to 4
-(compose reads them; Caddy reads the ones marked Caddy):
+The deployment around the application, in the env files (compose reads them;
+Caddy reads the ones marked Caddy). "Dev" is the development loop's
+`.env.example`; the numbers are the scenarios of `docs/deployment.md`: 1 is the
+local trial, 2 production with the bundled Keycloak, 3 production with your own
+identity provider.
 
-| Variable | Scenarios | What it is for |
+| Variable | Used by | What it is for |
 | --- | --- | --- |
-| `COMPOSE_PROFILES` | 2, 3 | `keycloak` brings up the bundled Keycloak and its database; absent, as in scenario 4, neither runs |
-| `CADDY_SITES` | 2, 3, 4 | Caddy: the file of site blocks under `caddy/`, e.g. `sites/edge.caddyfile`. The workbench sets nothing and gets `sites/local.caddyfile` |
-| `CADDY_SITE_ADDRESS` | 1, 2 | Caddy: the address `local.caddyfile` serves; a port and no host name. The workbench's host configuration sets it, compose sets it in scenario 2 |
-| `HTTP_PORT`, `HTTPS_PORT` | 2, 3, 4 | the host ports Caddy's 80 and 443 are published on: 8080 and 8443 locally, 80 and 443 in production |
-| `HANDOUT_DOMAIN` | 2, 3, 4 | the domain the publisher interface answers on; a handout is `<address>.<this>` |
-| `KEYCLOAK_DOMAIN` | 3 | Caddy: the name the bundled Keycloak answers on |
-| `ACME_EMAIL` | 2, 3, 4 | Caddy: where Let's Encrypt writes to; unused in scenario 2 |
-| `HANDOUT_STATE_DIR` | 2, 3, 4 | the one directory that holds all persistent state |
-| `POSTGRES_PASSWORD` | 2, 3, 4 | the password of the application's database |
-| `KEYCLOAK_COMMAND`, `KEYCLOAK_REALM_FILE`, `KC_HOSTNAME`, `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | 2, 3 | the bundled Keycloak: how it starts, which realm it imports, the URL it is reached at, its database password and its first administrator |
-| `APP_HOST`, `APP_PORT`, `KEYCLOAK_HOST`, `KEYCLOAK_PORT` | Caddy | where Caddy reaches the application and Keycloak; compose sets them to the service names, and the workbench's host configuration sets the first two |
+| `COMPOSE_PROFILES` | dev, 1, 2 | `keycloak` brings up the bundled Keycloak and its database; absent, as in scenario 3, neither runs |
+| `CADDY_SITES` | dev, 1, 2, 3 | Caddy: the file of site blocks under `caddy/`, e.g. `sites/edge.caddyfile`. Left unset, the Caddyfile serves `sites/local.caddyfile` |
+| `CADDY_SITE_ADDRESS` | dev, 1 | Caddy: the address `local.caddyfile` serves; a port and no host name |
+| `HTTP_PORT`, `HTTPS_PORT` | dev, 1, 2, 3 | the host ports Caddy's 80 and 443 are published on: 8080 and 8443 locally, 80 and 443 in production |
+| `HANDOUT_DOMAIN` | dev, 1, 2, 3 | the domain the publisher interface answers on; a handout is `<address>.<this>` |
+| `KEYCLOAK_DOMAIN` | 2 | Caddy: the name the bundled Keycloak answers on |
+| `ACME_EMAIL` | dev, 1, 2, 3 | Caddy: where Let's Encrypt writes to; unused in the trial and the loop |
+| `HANDOUT_STATE_DIR` | dev, 1, 2, 3 | the one directory that holds all persistent state |
+| `POSTGRES_PASSWORD` | dev, 1, 2, 3 | the password of the application's database |
+| `KEYCLOAK_COMMAND`, `KEYCLOAK_REALM_FILE`, `KC_HOSTNAME`, `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | dev, 1, 2 | the bundled Keycloak: how it starts, which realm it imports, the URL it is reached at, its database password and its first administrator |
+| `APP_HOST`, `APP_PORT`, `KEYCLOAK_HOST`, `KEYCLOAK_PORT` | Caddy | where Caddy reaches the application and Keycloak; compose sets them to the service names. The development loop sets `APP_HOST` to `host.docker.internal`, a workbench's host configuration sets the first two |
 
-The application's own twelve variables, all in `env/1-workbench.env.example`
-with the same sentence as a comment above each, and in every other env file
-with the value that scenario needs:
+The application's own twelve variables, all in `.env.example` with the same
+sentence as a comment above each, and in every env file of a deployment with the
+value that deployment needs:
 
 | Variable | What it is for |
 | --- | --- |
@@ -102,7 +187,7 @@ connection the tests use to create and drop the throwaway `handout_test`
 database around each test file, so the role behind it must be allowed to
 `CREATE DATABASE`. Anyone cloning this repository needs it set to run
 `npm test`, even though the application never reads it. It is documented in
-`env/1-workbench.env.example` alongside the other twelve.
+`.env.example` alongside the other twelve.
 
 ## Addresses come from the request, never from configuration
 

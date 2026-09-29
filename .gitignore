@@ -27,3 +27,6 @@ data/testfiles/5-refused/progress-300mb.html
 # (env/local.env.example, .env.example): a directory beside compose.yaml. The
 # databases are named volumes and are not in the working tree.
 /artifacts/
+
+# A stray copy of a local .env, committed by accident once.
+.env1

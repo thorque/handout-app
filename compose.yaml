@@ -80,7 +80,8 @@ services:
 
   app:
     # Never `build:`. A pinned version rather than `latest`, so this brings up
-    # the same product tomorrow as today; the README says how to move.
+    # the same product tomorrow as today; the "A newer version" section of the
+    # README says how to move.
     image: ghcr.io/thorque/handout-app:0.2.0
     # The OIDC discovery document is fetched at start, so an application that
     # comes up before the realm import is finished aborts. It is restarted here

@@ -1,6 +1,6 @@
 // The production example (deploy/) is a second, self-contained deployment next
 // to the local one (docs/adr/0030). These checks hold the two together and hold
-// the operator chapter of the README to what the files actually need. Files are
+// the operator document (deploy/README.md) to what the files actually need. Files are
 // read as text, not parsed, for the reason test/compose.test.js gives.
 
 import test from "node:test";
@@ -25,7 +25,7 @@ const envExample = read("deploy/.env.example");
 const deployCaddy = read("deploy/caddy/Caddyfile");
 const deployCaddyCode = withoutComments(deployCaddy);
 const localCaddy = read("caddy/Caddyfile");
-const readme = read("README.md");
+const readme = read("deploy/README.md");
 const realm = JSON.parse(read("deploy/keycloak/realm.json"));
 const localRealm = JSON.parse(read("keycloak/realm.json"));
 
@@ -89,13 +89,13 @@ test("every variable the production compose uses is required, so a missing one s
   assert.equal(bare, null, `blank references: ${bare}`);
 });
 
-test("the README names every variable of the deployment", () => {
+test("the deploy README names every variable of the deployment", () => {
   for (const key of envKeys) {
-    assert.ok(readme.includes(key), `README.md does not mention ${key}`);
+    assert.ok(readme.includes(key), `deploy/README.md does not mention ${key}`);
   }
 });
 
-test("the README names every volume of the production compose", () => {
+test("the deploy README names every volume of the production compose", () => {
   const section = deployComposeCode.slice(
     deployComposeCode.lastIndexOf("\nvolumes:"),
   );
@@ -104,7 +104,10 @@ test("the README names every volume of the production compose", () => {
   );
   assert.equal(volumes.length, 4);
   for (const volume of volumes) {
-    assert.ok(readme.includes(volume), `README.md does not mention ${volume}`);
+    assert.ok(
+      readme.includes(volume),
+      `deploy/README.md does not mention ${volume}`,
+    );
   }
 });
 

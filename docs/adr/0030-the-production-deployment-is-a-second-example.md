@@ -38,6 +38,6 @@ Caddyfile with an indirection in front of it.
 
 Two Caddyfiles, two composes and two realms that must be kept in step by hand.
 `test/deployment.test.js` is what holds together the parts that must agree (the
-image version, the ask path, the variables against the README), and CI validates
-both Caddyfiles with the official Caddy image, because the production one runs
-nowhere in development.
+image version, the ask path, the variables against the guide in
+`deploy/README.md`), and CI validates both Caddyfiles with the official Caddy
+image, because the production one runs nowhere in development.

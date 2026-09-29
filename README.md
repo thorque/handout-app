@@ -92,20 +92,12 @@ monoceros apply handout
 monoceros shell handout
 ```
 
-In `projects/handout-app`, fill `.env` from the environment the workbench
-exports, then start the app through its launch config
-(`.monoceros/launch.json`):
+In `projects/handout-app`, copy the workbench's values into `.env`, then start
+the app through its launch config (`.monoceros/launch.json`):
 
 ```sh
 # Overwrites an existing .env.
-cp .env.example .env
-sed -i.bak \
-  -e "s|^DATABASE_URL=.*|DATABASE_URL=$POSTGRES_URL|" \
-  -e "s|^OIDC_ISSUER_URL=.*|OIDC_ISSUER_URL=$KEYCLOAK_PUBLIC_URL/realms/handout|" \
-  -e "s|^OIDC_BACKCHANNEL_URL=.*|OIDC_BACKCHANNEL_URL=$KEYCLOAK_URL/realms/handout|" \
-  -e "s|^POSTGRES_URL=.*|POSTGRES_URL=$POSTGRES_URL|" \
-  .env
-rm -f .env.bak
+cp .env.monoceros.example .env
 npm install
 monoceros-ctl start handout-app   # on the host: monoceros start handout handout-app
 ```

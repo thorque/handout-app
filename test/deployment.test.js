@@ -95,20 +95,26 @@ test("the deploy README names every variable of the deployment", () => {
   }
 });
 
-test("the deploy README names every volume of the production compose", () => {
-  const section = deployComposeCode.slice(
-    deployComposeCode.lastIndexOf("\nvolumes:"),
+test("the deploy README names every bind-mount path of the production compose", () => {
+  const paths = new Set(
+    [
+      ...deployComposeCode.matchAll(
+        /\$\{HANDOUT_STATE_DIR:\?[^}]*\}\/([a-z][a-z0-9-]*):/g,
+      ),
+    ].map((match) => match[1]),
   );
-  const volumes = [...section.matchAll(/^ {2}([a-z][a-z0-9-]*):\s*$/gm)].map(
-    (match) => match[1],
-  );
-  assert.equal(volumes.length, 4);
-  for (const volume of volumes) {
+  assert.equal(paths.size, 4);
+  for (const path of paths) {
     assert.ok(
-      readme.includes(volume),
-      `deploy/README.md does not mention ${volume}`,
+      readme.includes(`$HANDOUT_STATE_DIR/${path}`),
+      `deploy/README.md does not mention $HANDOUT_STATE_DIR/${path}`,
     );
   }
+  assert.doesNotMatch(
+    deployComposeCode,
+    /^volumes:/m,
+    "named volumes are back",
+  );
 });
 
 test("the ask path is the same string in the code and in both Caddyfiles", () => {

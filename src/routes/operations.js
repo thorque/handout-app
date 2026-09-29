@@ -9,7 +9,7 @@ export const HEALTH_PATH = "/.handout/health";
 // The question Caddy asks before it obtains or renews a certificate for a
 // hostname it does not know: GET <path>?domain=<the full hostname>, and a 2xx
 // allows it. The answer is the address's own existence. The route is for Caddy
-// alone: every Caddyfile in this repository blocks it on the public side, and
+// alone: the Caddyfile in this repository blocks it on the public side, and
 // an operator's own proxy must do the same.
 export default async function operationsRoutes(fastify) {
   const { pool } = fastify;

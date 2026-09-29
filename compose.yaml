@@ -1,15 +1,21 @@
-# Handout, one compose for three of the four scenarios (README.md, "Four ways
-# to run it"): the local Docker trial, production with the bundled Keycloak,
-# and production against an identity provider you already have. Nothing is
-# built; the application is pulled from the registry at a released version.
+# Handout, one compose for the local Docker trial, for production with the
+# bundled Keycloak, for production against an identity provider you already
+# have, and for the development loop (README.md, "Developing"; docs/deployment.md,
+# "Three ways to run it"). Nothing is built; the application is pulled from the
+# registry at a released version, except in the development loop, which does not
+# start it at all.
 #
 # What differs between them is not in this file but in the env file it is run
-# with, one per scenario under env/:
+# with, one per deployment under env/:
 #
-#   docker compose --env-file env/2-local.env.example up
+#   docker compose --env-file env/local.env.example up
 #   docker compose --env-file .env up -d          # .env: a filled copy of
-#                                                 # env/3-production.env.example
-#                                                 # or env/4-production-...
+#                                                 # env/production.env.example
+#                                                 # or env/production-external-idp...
+#
+# The development loop runs the application from source and everything else
+# from this file, with the .env.example at the repository root: `npm run dev`
+# (scripts/dev.sh, README.md).
 #
 # The env file decides four things. Which Caddy site file is used
 # (CADDY_SITES, caddy/Caddyfile), which host ports Caddy is published on
@@ -20,11 +26,11 @@
 #
 # The service blocks for Caddy, Keycloak and PostgreSQL follow the catalog's
 # pipeline blocks; each departure is named where it happens. A value that every
-# scenario must set is required here (`:?`), so a missing one stops the start
-# and names itself. The few that only one scenario needs are the exception,
+# deployment must set is required here (`:?`), so a missing one stops the start
+# and names itself. The few that only one deployment needs are the exception,
 # because compose fills in every service of the file, also one that a profile
-# leaves out: those are the Keycloak-only variables, and the env file of the
-# scenario that runs Keycloak declares them.
+# leaves out: those are the Keycloak-only variables, and the env file of every
+# deployment that runs Keycloak declares them.
 #
 # It needs Docker Compose 2.20.0 or later, for `required: false` on depends_on.
 #
@@ -73,6 +79,13 @@ services:
       # lies below it; the entrypoint runs as root, creates it and hands it to
       # the postgres user.
       - "${HANDOUT_STATE_DIR:?set the base directory of all persistent state in .env, e.g. /srv/handout}/postgres:/var/lib/postgresql"
+    ports:
+      # Published on the loopback interface of the host, for the development
+      # loop: the application runs from source on the host and reaches its
+      # database here. Nothing else uses it, and loopback only means nothing
+      # outside the machine can reach it. A port mapping cannot be switched off
+      # by a variable, so it is the same one everywhere, as Keycloak's is below.
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
 
   # Keycloak's own database, never the application's: it owns about ninety
@@ -99,8 +112,8 @@ services:
       retries: 20
     restart: unless-stopped
 
-  # The bundled identity provider (profile `keycloak`): scenarios 2 and 3. An
-  # external provider (scenario 4) leaves the profile off and this service, and
+  # The bundled identity provider (profile `keycloak`): the trial, the development
+  # loop and production with the bundled Keycloak. An external provider leaves the profile off and this service, and
   # its database above, are not started.
   keycloak:
     profiles: [keycloak]
@@ -190,7 +203,7 @@ services:
       HANDOUT_DATA_DIR: /data
       MAX_UPLOAD_BYTES: "524288000"
       # The identity provider is whatever the env file says: the bundled
-      # Keycloak's values in scenarios 2 and 3, an existing provider's in 4.
+      # Keycloak's values with the bundled one, an existing provider's without.
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?set the issuer as tokens carry it in .env}
       OIDC_BACKCHANNEL_URL: ${OIDC_BACKCHANNEL_URL:?set the issuer as this container reaches it in .env}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set the client id in .env}
@@ -224,7 +237,7 @@ services:
       # start, and Keycloak needs a while on the first start to create its
       # schema and import the realm. Without this gate `docker compose up -d`
       # fails with "dependency failed to start: container handout-app is
-      # unhealthy". `required: false` because scenario 4 leaves the service out
+      # unhealthy". `required: false` because a deployment without the bundled Keycloak leaves the service out
       # through its profile: Compose then adds no edge instead of refusing the
       # file. It needs Docker Compose 2.20.0 or later.
       keycloak:
@@ -236,16 +249,23 @@ services:
     image: caddy:2
     # No `--watch`: the config is fixed for the life of the container.
     command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    extra_hosts:
+      # Docker Desktop resolves host.docker.internal by itself; on Linux it
+      # needs this line. Only the development loop uses the name (APP_HOST in
+      # its env file), so that Caddy reaches an application running on the host.
+      - "host.docker.internal:host-gateway"
     environment:
       # Which file of site blocks under caddy/sites/ this Caddy serves, and the
-      # values those files read. Names a scenario does not use are empty, and
+      # values those files read. Names a deployment does not use are empty, and
       # the file that would read them is not imported.
       CADDY_SITES: ${CADDY_SITES:?set the Caddy site file in .env, e.g. sites/edge.caddyfile}
       CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-}
       HANDOUT_DOMAIN: ${HANDOUT_DOMAIN:?set the publisher domain in .env, e.g. handout.example.com}
       KEYCLOAK_DOMAIN: ${KEYCLOAK_DOMAIN:-}
       ACME_EMAIL: ${ACME_EMAIL:?set the Lets Encrypt contact address in .env}
-      APP_HOST: app
+      # The application's container. The development loop sets APP_HOST to
+      # host.docker.internal instead, so that Caddy reaches `npm start` on the host.
+      APP_HOST: ${APP_HOST:-app}
       APP_PORT: "3000"
       KEYCLOAK_HOST: keycloak
       KEYCLOAK_PORT: "8080"
@@ -274,7 +294,7 @@ services:
     healthcheck:
       # A TCP connect, not an HTTP request: this answers "is Caddy listening",
       # and any HTTP probe would answer for the application instead. Port 80
-      # is open in every scenario.
+      # is open in every deployment.
       test: [CMD, nc, -z, localhost, "80"]
       interval: 5s
       timeout: 5s

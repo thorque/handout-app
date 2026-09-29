@@ -1,7 +1,7 @@
-// The local trial (scenario 2 of the README's "Four ways to run it"): the
-// compose at the root, run with env/2-local.env.example. These checks hold
-// that env file, the compose, the realm fixture and the deployment guide together. The
-// checks that hold all scenarios together are in test/deployment.test.js. Files
+// The local trial (scenario 1 of docs/deployment.md): the compose at the root,
+// run with env/local.env.example. These checks hold that env file, the compose,
+// the realm fixture and the deployment guide together. The checks that hold all
+// scenarios and the development loop together are in test/deployment.test.js. Files
 // are read as text, for the reason test/helpers/deployment-files.js gives.
 
 import test from "node:test";
@@ -11,7 +11,7 @@ import { read, parseEnv } from "./helpers/deployment-files.js";
 
 const compose = read("compose.yaml");
 const guide = read("docs/deployment.md");
-const local = parseEnv(read("env/2-local.env.example"));
+const local = parseEnv(read("env/local.env.example"));
 const realm = JSON.parse(read("keycloak/realm.json"));
 const client = realm.clients.find((c) => c.clientId === "handout-web");
 
@@ -89,6 +89,6 @@ test("the deployment guide names the address, the sign-in and the provider the c
   assert.ok(guide.includes("miriam"));
   assert.ok(guide.includes("http://localhost:8081"));
   assert.ok(
-    guide.includes("docker compose --env-file env/2-local.env.example up"),
+    guide.includes("docker compose --env-file env/local.env.example up"),
   );
 });

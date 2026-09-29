@@ -23,5 +23,6 @@ data/testfiles/5-refused/progress-300mb.html
 !.monoceros/
 !.monoceros/launch.json
 
-# The local Docker trial's state (env/2-local.env.example): a directory beside compose.yaml.
+# The state of the local Docker trial and of the development loop
+# (env/local.env.example, .env.example): a directory beside compose.yaml.
 state/

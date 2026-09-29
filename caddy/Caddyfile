@@ -1,33 +1,32 @@
 # The one Caddyfile of Handout. Everything the deployments share is here; what
 # differs is a file of site blocks under sites/, chosen by CADDY_SITES as a path
-# relative to this file, and it defaults to the workbench's.
+# relative to this file, and it defaults to the first.
 #
-#   sites/local.caddyfile         a bare-port site, no TLS: the Monoceros
-#                                 workbench (scenario 1) and the local Docker
-#                                 trial (scenario 2)
+#   sites/local.caddyfile         a bare-port site, no TLS: the local Docker
+#                                 trial, the development loop, and a setup
+#                                 where another proxy sits in front of this one
 #   sites/edge.caddyfile          the edge, a certificate per name, and the
 #                                 identity provider is somebody else's
-#                                 (scenario 4)
 #   sites/edge-keycloak.caddyfile the same, plus the bundled Keycloak under a
-#                                 name of its own (scenario 3)
+#                                 name of its own
 #
 # The choice cannot be made with a variable inside one file: a site block whose
 # address is an empty variable does not vanish, Caddy refuses it ("server block
 # without any key is global configuration"). So the sites are files, and the
 # import below picks one. The path resolves relative to this file, not to the
-# working directory, so the workbench needs no variable at all.
+# working directory, so the default needs no variable at all.
 {
 	# Let's Encrypt sends expiry and policy notices here. Only production ever
 	# talks to it, but the directive takes no empty value, hence a default that
 	# is not a real address: compose.yaml requires ACME_EMAIL, so it cannot be
-	# missing where it matters, and the workbench sets nothing.
+	# missing where it matters, and a setup that sets nothing gets the placeholder.
 	email {$ACME_EMAIL:acme@localhost.invalid}
 
 	servers {
 		# Honour X-Forwarded-* only from a peer inside a private range. That is
-		# right in every scenario, so it lives here and not per scenario:
-		# - behind the workbench proxy the peer is that proxy, and its headers
-		#   carry the origin the browser used;
+		# right in every deployment, so it lives here and not per site file:
+		# - behind another reverse proxy the peer is that proxy, and its
+		#   headers carry the origin the browser used;
 		# - as the edge, a client from the internet has a public source address,
 		#   so its headers are replaced by the real values and it cannot pick
 		#   the origin Handout derives its addresses from.

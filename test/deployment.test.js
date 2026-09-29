@@ -1,14 +1,16 @@
-// The four scenarios of the README's "Four ways to run it" share one
-// caddy/Caddyfile and one compose.yaml (docs/adr/0032). What differs is a file
-// of site blocks under caddy/sites/ and an env file under env/. These checks
-// hold the shared parts together, hold each env file complete against the
-// compose, and hold the deployment guide and the README to what the files
-// actually need. Files are read as text, for the reason
+// The three scenarios of docs/deployment.md and the development loop of the
+// README share one caddy/Caddyfile and one compose.yaml (docs/adr/0032). What
+// differs is a file of site blocks under caddy/sites/ and an env file: one per
+// scenario under env/, and .env.example at the root for the development loop.
+// These checks hold the shared parts together, hold each env file complete
+// against the compose, and hold the deployment guide and the README to what the
+// files actually need. Files are read as text, for the reason
 // test/helpers/deployment-files.js gives.
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import { TLS_CHECK_PATH } from "../src/routes/operations.js";
+import { CONFIG_VARIABLES } from "../src/config.js";
 import {
   read,
   exists,
@@ -27,25 +29,36 @@ const ci = read(".github/workflows/ci.yml");
 const caddyfile = read("caddy/Caddyfile");
 const caddyCode = withoutComments(caddyfile);
 
-// The scenarios, each with the one env file and the one site file it is run
-// with. Scenario 1 has no compose: the workbench sets Caddy's values on the
-// host and gets the default site file.
+// The scenarios of docs/deployment.md, each with the one env file and the one
+// site file it is run with.
 const SCENARIOS = {
-  1: { env: "env/1-workbench.env.example", site: "sites/local.caddyfile" },
-  2: { env: "env/2-local.env.example", site: "sites/local.caddyfile" },
-  3: {
-    env: "env/3-production.env.example",
+  1: { env: "env/local.env.example", site: "sites/local.caddyfile" },
+  2: {
+    env: "env/production.env.example",
     site: "sites/edge-keycloak.caddyfile",
   },
-  4: {
-    env: "env/4-production-external-idp.env.example",
+  3: {
+    env: "env/production-external-idp.env.example",
     site: "sites/edge.caddyfile",
   },
 };
-const COMPOSE_SCENARIOS = [2, 3, 4];
+const COMPOSE_SCENARIOS = [1, 2, 3];
 const envOf = (n) => parseEnv(read(SCENARIOS[n].env));
 const siteOf = (n) => read("caddy/" + SCENARIOS[n].site);
 const SITE_FILES = [...new Set(Object.values(SCENARIOS).map((s) => s.site))];
+
+// The development loop: the application runs from source and compose brings up
+// the services, both from the one .env.example at the root. Its file carries
+// the application's variables (and the tests') beside compose's, so those are
+// not compose's to use.
+const DEV_ENV = ".env.example";
+const dev = parseEnv(read(DEV_ENV));
+const APP_KEYS = new Set([...CONFIG_VARIABLES, "POSTGRES_URL"]);
+// Every env file compose is run with.
+const COMPOSE_ENVS = [
+  ...COMPOSE_SCENARIOS.map((n) => ({ name: SCENARIOS[n].env, env: envOf(n) })),
+  { name: DEV_ENV, env: dev },
+];
 
 // Keys an env file sets for compose itself and the compose text never names.
 const COMPOSE_OWN_KEYS = new Set(["COMPOSE_PROFILES"]);
@@ -70,8 +83,9 @@ test("the compose pins one image version, on every service that runs the applica
 });
 
 test("every scenario sets the Secure cookie and plain-HTTP flags to what its origin is", () => {
-  assert.equal(envOf(2).get("SESSION_COOKIE_SECURE"), "false");
-  for (const n of [3, 4]) {
+  assert.equal(envOf(1).get("SESSION_COOKIE_SECURE"), "false");
+  assert.equal(dev.get("SESSION_COOKIE_SECURE"), "false");
+  for (const n of [2, 3]) {
     assert.equal(
       envOf(n).get("SESSION_COOKIE_SECURE"),
       "true",
@@ -79,25 +93,26 @@ test("every scenario sets the Secure cookie and plain-HTTP flags to what its ori
     );
   }
   // Plain HTTP against the provider is only for the hop inside the compose
-  // network (scenarios 2 and 3); an external provider is reached over HTTPS.
-  assert.equal(envOf(3).get("OIDC_ALLOW_INSECURE_HTTP"), "true");
-  assert.equal(envOf(4).get("OIDC_ALLOW_INSECURE_HTTP"), "false");
+  // network (scenarios 1 and 2, and the loop); an external provider is reached over HTTPS.
+  assert.equal(envOf(2).get("OIDC_ALLOW_INSECURE_HTTP"), "true");
+  assert.equal(envOf(3).get("OIDC_ALLOW_INSECURE_HTTP"), "false");
+  assert.equal(dev.get("OIDC_ALLOW_INSECURE_HTTP"), "true");
   assert.doesNotMatch(composeCode, /SESSION_COOKIE_SECURE: "(true|false)"/);
 });
 
 test("every variable the compose uses is declared in an env file, and every declared one is used", () => {
   const used = usedIn(composeCode);
-  const declared = new Set(
-    COMPOSE_SCENARIOS.flatMap((n) => [...envOf(n).keys()]),
-  );
+  const declared = new Set(COMPOSE_ENVS.flatMap(({ env }) => [...env.keys()]));
   for (const key of used) {
     assert.ok(declared.has(key), `${key} is used but declared nowhere`);
   }
-  for (const n of COMPOSE_SCENARIOS) {
-    for (const key of envOf(n).keys()) {
+  for (const { name, env } of COMPOSE_ENVS) {
+    for (const key of env.keys()) {
+      // The development loop's file also carries the application's variables.
+      const application = name === DEV_ENV && APP_KEYS.has(key);
       assert.ok(
-        used.has(key) || COMPOSE_OWN_KEYS.has(key),
-        `${key} is declared in ${SCENARIOS[n].env} but never used`,
+        used.has(key) || COMPOSE_OWN_KEYS.has(key) || application,
+        `${key} is declared in ${name} but never used`,
       );
     }
   }
@@ -105,9 +120,9 @@ test("every variable the compose uses is declared in an env file, and every decl
 
 test("every env file declares every variable the compose requires, so a missing one is a hole in the example", () => {
   const required = requiredIn(composeCode);
-  for (const n of COMPOSE_SCENARIOS) {
+  for (const { name, env } of COMPOSE_ENVS) {
     for (const key of required) {
-      assert.ok(envOf(n).has(key), `${SCENARIOS[n].env} lacks ${key}`);
+      assert.ok(env.has(key), `${name} lacks ${key}`);
     }
   }
 });
@@ -117,16 +132,16 @@ test("the env files that run the bundled Keycloak declare every variable its ser
     ...usedIn(serviceBlock(composeCode, "keycloak")),
     ...usedIn(serviceBlock(composeCode, "keycloak-db")),
   ]);
-  for (const n of [2, 3]) {
-    const env = envOf(n);
-    assert.equal(env.get("COMPOSE_PROFILES"), "keycloak", `scenario ${n}`);
+  for (const { name, env } of COMPOSE_ENVS) {
+    if (name === SCENARIOS[3].env) continue;
+    assert.equal(env.get("COMPOSE_PROFILES"), "keycloak", name);
     for (const key of keycloakVars) {
-      assert.ok(env.has(key), `${SCENARIOS[n].env} lacks ${key}`);
+      assert.ok(env.has(key), `${name} lacks ${key}`);
     }
   }
   // Both Keycloak services sit in that profile and nothing else does.
   assert.equal(composeCode.match(/^\s+profiles: \[keycloak\]$/gm).length, 2);
-  const external = envOf(4);
+  const external = envOf(3);
   assert.equal(external.has("COMPOSE_PROFILES"), false);
   assert.equal(external.get("CADDY_SITES"), "sites/edge.caddyfile");
   for (const key of external.keys()) {
@@ -157,22 +172,23 @@ test("each env file names the site file its scenario uses, and it exists", () =>
   for (const site of SITE_FILES) {
     assert.ok(exists("caddy/" + site), `caddy/${site} is missing`);
   }
-  // The workbench sets no CADDY_SITES, so the default has to be its file.
+  // A setup that sets no CADDY_SITES (a workbench with its own proxy in front
+  // of this Caddy) gets the default, so the default has to be the local file.
   assert.ok(
     caddyCode.trimEnd().endsWith(`import {$CADDY_SITES:${SCENARIOS[1].site}}`),
   );
-  for (const n of [2, 3]) {
-    assert.ok(exists(envOf(n).get("KEYCLOAK_REALM_FILE").slice(2)));
+  // The development loop serves the same file as the trial.
+  assert.equal(dev.get("CADDY_SITES"), SCENARIOS[1].site);
+  for (const { env } of COMPOSE_ENVS.filter(({ env }) =>
+    env.has("KEYCLOAK_REALM_FILE"),
+  )) {
+    assert.ok(exists(env.get("KEYCLOAK_REALM_FILE").slice(2)));
   }
 });
 
-test("the README puts each scenario's env file and site file on one row", () => {
-  for (const [n, { env, site }] of Object.entries(SCENARIOS)) {
-    const row = readme
-      .split("\n")
-      .find((line) => line.startsWith(`| ${n} |`) && line.includes(env));
-    assert.ok(row, `no README row for scenario ${n}`);
-    assert.ok(row.includes(site), `README row ${n} lacks ${site}`);
+test("the README points at each scenario's env file", () => {
+  for (const { env } of Object.values(SCENARIOS)) {
+    assert.ok(readme.includes(`(${env})`), `README does not link ${env}`);
   }
 });
 
@@ -213,7 +229,7 @@ test("each scenario's section carries a block that uses the env file that scenar
   // The blocks that copy an env file to .env are the ones that overwrite it,
   // and they have to say so: running one twice against a live instance mints
   // new secrets for databases that still hold the old ones.
-  for (const n of [1, 3, 4]) {
+  for (const n of [2, 3]) {
     const copy = scenarioBlocks(n).find((b) =>
       b.includes(`cp ${SCENARIOS[n].env} .env`),
     );
@@ -223,7 +239,7 @@ test("each scenario's section carries a block that uses the env file that scenar
 });
 
 test("the production blocks generate every secret with hex and leave no other empty value", () => {
-  for (const n of [3, 4]) {
+  for (const n of [2, 3]) {
     const block = scenarioBlocks(n).find((b) => b.includes("openssl"));
     assert.ok(block, `scenario ${n} has no generating block`);
     const filled = new Set(
@@ -232,7 +248,7 @@ test("the production blocks generate every secret with hex and leave no other em
     for (const [key, value] of envOf(n)) {
       if (value !== "") continue;
       const yours =
-        n === 4 && /^OIDC_(ISSUER_URL|CLIENT_ID|CLIENT_SECRET)$/.test(key);
+        n === 3 && /^OIDC_(ISSUER_URL|CLIENT_ID|CLIENT_SECRET)$/.test(key);
       assert.equal(
         filled.has(key),
         !yours,
@@ -244,18 +260,18 @@ test("the production blocks generate every secret with hex and leave no other em
 });
 
 test("the README and the deployment guide document every variable of every env file", () => {
-  for (const n of Object.keys(SCENARIOS)) {
-    for (const key of envOf(n).keys()) {
+  for (const { name, env } of COMPOSE_ENVS) {
+    for (const key of env.keys()) {
       assert.ok(
         readme.includes(key) || guide.includes(key),
-        `neither the README nor docs/deployment.md mentions ${key} of ${SCENARIOS[n].env}`,
+        `neither the README nor docs/deployment.md mentions ${key} of ${name}`,
       );
     }
   }
 });
 
 test("the deployment guide names every variable a production operator fills", () => {
-  for (const n of [3, 4]) {
+  for (const n of [2, 3]) {
     for (const [key, value] of envOf(n)) {
       if (value === "") {
         assert.ok(guide.includes(key), `docs/deployment.md lacks ${key}`);
@@ -287,7 +303,7 @@ test("Keycloak's health check has a start period, and the guide names the repair
     serviceBlock(composeCode, "keycloak"),
     /^\s+start_period: \d+s$/m,
   );
-  // The compose cannot require these (scenario 4 has no Keycloak), so the
+  // The compose cannot require these (scenario 3 has no Keycloak), so the
   // guide has to say what an empty value does and how to get out of it.
   assert.match(guide, /rm -rf "\$HANDOUT_STATE_DIR\/keycloak-db"/);
   assert.match(guide, /KC_BOOTSTRAP_ADMIN_PASSWORD/);
@@ -320,8 +336,8 @@ test("every site block that fronts the application imports the snippet that deni
   }
   // Every site file has at least one block of its own or imports one.
   assert.equal(siteBlocks(withoutComments(siteOf(1))).length, 1);
-  assert.equal(siteBlocks(withoutComments(siteOf(4))).length, 2);
-  assert.match(withoutComments(siteOf(3)), /^import edge\.caddyfile$/m);
+  assert.equal(siteBlocks(withoutComments(siteOf(3))).length, 2);
+  assert.match(withoutComments(siteOf(2)), /^import edge\.caddyfile$/m);
 });
 
 test("the shared part carries trusted_proxies once, and no site file repeats it", () => {
@@ -335,7 +351,7 @@ test("the shared part carries trusted_proxies once, and no site file repeats it"
 });
 
 test("on-demand TLS is on the hostname pattern only, and the Keycloak block is automated explicitly", () => {
-  const edge = withoutComments(siteOf(4));
+  const edge = withoutComments(siteOf(3));
   assert.equal(edge.match(/^\s+on_demand$/gm).length, 1);
   const pattern = siteBlocks(edge).find((b) => b.address.startsWith("*."));
   assert.ok(pattern.text.includes("on_demand"));
@@ -359,11 +375,11 @@ test("on-demand TLS is on the hostname pattern only, and the Keycloak block is a
   assert.ok(!keycloak.text.includes("on_demand"));
 });
 
-test("the workbench and the trial serve one bare-port site, with no TLS of its own", () => {
+test("the trial, the loop and any proxied setup serve one bare-port site, with no TLS of its own", () => {
   const [block] = siteBlocks(withoutComments(siteOf(1)));
   assert.equal(block.address, "{$CADDY_SITE_ADDRESS}");
   assert.doesNotMatch(block.text, /\btls\b/);
-  assert.equal(SCENARIOS[1].site, SCENARIOS[2].site);
+  assert.match(dev.get("CADDY_SITE_ADDRESS"), /^:\d+$/);
 });
 
 test("the production realm carries no users and no literal secret, and the fixture keeps its users", () => {
@@ -373,15 +389,15 @@ test("the production realm carries no users and no literal secret, and the fixtu
   const client = production.clients.find((c) => c.clientId === "handout-web");
   assert.ok(client.secret.startsWith("${"));
   assert.equal(
-    envOf(3).get("KEYCLOAK_REALM_FILE"),
+    envOf(2).get("KEYCLOAK_REALM_FILE"),
     "./keycloak/realm.production.json",
   );
-  assert.equal(envOf(3).get("OIDC_CLIENT_ID"), client.clientId);
+  assert.equal(envOf(2).get("OIDC_CLIENT_ID"), client.clientId);
   assert.equal(JSON.parse(read("keycloak/realm.json")).users.length, 2);
 });
 
-test("scenario 3 derives Keycloak's public URL and the issuer from one name", () => {
-  const env = envOf(3);
+test("scenario 2 derives Keycloak's public URL and the issuer from one name", () => {
+  const env = envOf(2);
   assert.equal(env.get("KC_HOSTNAME"), "https://${KEYCLOAK_DOMAIN}");
   assert.equal(
     env.get("OIDC_ISSUER_URL"),
@@ -389,11 +405,88 @@ test("scenario 3 derives Keycloak's public URL and the issuer from one name", ()
   );
 });
 
-test("CI validates the Caddyfile with every site file", () => {
+test("CI validates the Caddyfile with every site file, and with no CADDY_SITES at all", () => {
   for (const site of SITE_FILES) {
     assert.ok(
       ci.includes(site),
       `.github/workflows/ci.yml does not validate ${site}`,
     );
   }
+  // The case a proxied setup (a workbench) is in: the default import, with
+  // nothing chosen. A one-line validate call, so the line can be inspected.
+  const bare = ci
+    .split("\n")
+    .filter((line) => /^\s+validate -e CADDY_SITE_ADDRESS=/.test(line));
+  assert.equal(bare.length, 1, "no validation without CADDY_SITES");
+  assert.doesNotMatch(bare[0], /CADDY_SITES/);
+});
+
+// The README's development loop is three lines and nothing to fill; the
+// Monoceros chapter has one block that fills .env from the workbench's
+// environment. Both start from the one .env.example.
+const readmeBlocks = [...readme.matchAll(/^```sh\n([\s\S]*?)^```$/gm)].map(
+  (m) => m[1],
+);
+
+test("the README's development loop is three lines, and .env.example leaves nothing to fill", () => {
+  assert.ok(
+    readmeBlocks.includes("cp .env.example .env\nnpm install\nnpm run dev\n"),
+  );
+  for (const [key, value] of dev) {
+    assert.notEqual(value, "", `${key} is empty in ${DEV_ENV}`);
+  }
+});
+
+test("the workbench block of the README fills .env from .env.example and names no deployment's env file", () => {
+  const blocks = readmeBlocks.filter((b) => b.includes("sed -i"));
+  assert.equal(blocks.length, 1);
+  assert.match(blocks[0], /^# Overwrites an existing \.env/m);
+  assert.ok(blocks[0].includes("cp .env.example .env"));
+  assert.doesNotMatch(blocks[0], /env\/[a-z-]+\.env\.example/);
+});
+
+test(".env.example is one file for both readers: compose's variables and the application's twelve", () => {
+  for (const key of CONFIG_VARIABLES) {
+    assert.ok(dev.has(key), `${DEV_ENV} lacks ${key}`);
+  }
+  assert.ok(dev.has("POSTGRES_URL"));
+  // npm start reads the very .env that compose is given with --env-file.
+  assert.match(read("package.json"), /"start": "node --env-file=\.env /);
+  assert.match(read(DEV_ENV), /one file/i);
+});
+
+test("npm run dev starts the services and then the application, and never the app service", () => {
+  const scripts = JSON.parse(read("package.json")).scripts;
+  assert.equal(scripts.dev, "sh scripts/dev.sh");
+  assert.equal(scripts["dev:down"], "docker compose --env-file .env down");
+  const script = withoutComments(read("scripts/dev.sh"));
+  const calls = script.match(/^docker compose .*$/gm);
+  assert.deepEqual(calls, [
+    "docker compose --env-file .env up -d --wait postgres keycloak",
+    "docker compose --env-file .env up -d --no-deps caddy",
+  ]);
+  // The application is the last thing, in the script's own process, so that
+  // Ctrl+C ends it and leaves the detached containers alone.
+  assert.match(script.trimEnd(), /^exec npm start$/m);
+  assert.ok(script.trimEnd().endsWith("exec npm start"));
+});
+
+test("the development loop runs the application from source and everything else from the compose", () => {
+  // Caddy reaches the application on the host, and the name resolves on Linux.
+  assert.equal(dev.get("APP_HOST"), "host.docker.internal");
+  assert.match(
+    serviceBlock(composeCode, "caddy"),
+    /^\s+- "host\.docker\.internal:host-gateway"$/m,
+  );
+  assert.match(composeCode, /APP_HOST: \$\{APP_HOST:-app\}/);
+  // PostgreSQL is published on the host's loopback only, and the loop's
+  // connection strings say where.
+  assert.match(
+    serviceBlock(composeCode, "postgres"),
+    /^\s+- "127\.0\.0\.1:5432:5432"$/m,
+  );
+  assert.match(dev.get("DATABASE_URL"), /@localhost:5432\//);
+  assert.match(dev.get("POSTGRES_URL"), /@localhost:5432\//);
+  // The application listens where the Caddy container can reach it.
+  assert.equal(dev.get("BIND_ADDRESS"), "0.0.0.0");
 });

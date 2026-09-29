@@ -141,23 +141,6 @@ The containers are named `handout-app`, `handout-caddy`, `handout-db`,
 `handout-keycloak`, `handout-keycloak-db` and `handout-data-owner`. The fixed
 names mean a second copy of this deployment cannot run on the same host.
 
-### Moving an instance that still uses named volumes
-
-Earlier versions of this file kept the state in four Docker volumes, under the
-project name `deploy`. Once, with the new files in place:
-
-    docker compose -p deploy down
-    S=/srv/handout    # the value of HANDOUT_STATE_DIR in .env
-    sudo mkdir -p $S/artifacts $S/postgres $S/keycloak-db $S/caddy
-    for pair in handout-data:artifacts postgres-data:postgres keycloak-db-data:keycloak-db caddy-data:caddy; do
-      docker run --rm -v deploy_${pair%%:*}:/from:ro -v $S/${pair##*:}:/to alpine cp -a /from/. /to/
-    done
-    docker compose up -d
-
-If your project name was not `deploy` (the directory the compose file lived in),
-use that name for `-p` and as the volume prefix; `docker volume ls` shows it.
-Remove the old volumes with `docker volume rm` once the new stack works.
-
 ## A newer version
 
 Change the tag in `compose.yaml` (on `data-owner` and on `app`), then:

@@ -38,5 +38,6 @@ paths.
 
 The operator gives up the portability of named volumes and owns the path and its
 permissions. `container_name` rules out two instances on one host, which is
-right for a deployment that serves one domain. An instance that already runs on
-the old volumes has to move once; `deploy/README.md` gives the commands.
+right for a deployment that serves one domain. Nothing had to be migrated: the
+change landed the day the first instance went up, and the guide describes one
+way of installing rather than a way and a transition away from an older one.

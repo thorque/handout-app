@@ -88,7 +88,7 @@ services:
       # the postgres user.
       - postgres-data:/var/lib/postgresql
     # No `ports:` here. The development loop publishes 5432 on the host's
-    # loopback through compose.dev.yaml, which its .env names in COMPOSE_FILE.
+    # loopback through compose.dev.yaml, which only scripts/dev.sh brings in.
     restart: unless-stopped
 
   # Keycloak's own database, never the application's: it owns about ninety

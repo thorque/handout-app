@@ -74,8 +74,9 @@ application runs - `workspace` is the name the workbench container answers to on
 the Docker network, `3000` the port the application listens on - and the `env:`
 block is what hands them from `handout.env` to the Caddy container.
 
+In `$MONOCEROS_HOME/container-configs/handout.yml`, under the `caddy` service:
+
 ```yaml
-# under the caddy service
 volumes:
   - projects/handout-app/caddy:/etc/caddy:ro
 env:
@@ -84,7 +85,8 @@ env:
   APP_PORT: ${APP_PORT}
 ```
 
-with the values beside the yml, in `handout.env`:
+And the three values in `$MONOCEROS_HOME/container-configs/handout.env`,
+beside it:
 
 ```
 CADDY_SITE_ADDRESS=:81
@@ -98,8 +100,9 @@ directory. It imports everything there at startup, and its database is rebuilt
 on each apply, so this file is what gives the workbench a realm with the client
 and the user `miriam` to sign in with.
 
+In the same `handout.yml`, under the `keycloak` service:
+
 ```yaml
-# under the keycloak service
 volumes:
   - projects/handout-app/keycloak/realm.json:/opt/keycloak/data/import/handout-app.json:ro
 ```

@@ -452,8 +452,8 @@ test("CI validates the Caddyfile with every site file, and with no CADDY_SITES a
 });
 
 // The README's development loop is three lines and nothing to fill; the
-// Monoceros chapter has one block that fills .env from the workbench's
-// environment. Both start from the one .env.example.
+// Monoceros chapter has one block that copies .env.monoceros.example. Each
+// file is complete.
 const readmeBlocks = [...readme.matchAll(/^```sh\n([\s\S]*?)^```$/gm)].map(
   (m) => m[1],
 );
@@ -467,12 +467,25 @@ test("the README's development loop is three lines, and .env.example leaves noth
   }
 });
 
-test("the workbench block of the README fills .env from .env.example and names no deployment's env file", () => {
-  const blocks = readmeBlocks.filter((b) => b.includes("sed -i"));
+test("the workbench block of the README copies .env.monoceros.example and names no deployment's env file", () => {
+  const blocks = readmeBlocks.filter((b) =>
+    b.includes("cp .env.monoceros.example"),
+  );
   assert.equal(blocks.length, 1);
   assert.match(blocks[0], /^# Overwrites an existing \.env/m);
-  assert.ok(blocks[0].includes("cp .env.example .env"));
+  assert.ok(
+    blocks[0].includes("cp .env.monoceros.example .env\nnpm install\n"),
+  );
   assert.doesNotMatch(blocks[0], /env\/[a-z-]+\.env\.example/);
+  assert.doesNotMatch(readme, /sed -i/);
+});
+
+test(".env.monoceros.example leaves nothing to fill and carries the same variables as .env.example", () => {
+  const workbench = parseEnv(read(".env.monoceros.example"));
+  for (const [key, value] of workbench) {
+    assert.notEqual(value, "", `${key} is empty in .env.monoceros.example`);
+  }
+  assert.deepEqual([...workbench.keys()].sort(), [...APP_KEYS].sort());
 });
 
 test(".env.example is one file for both readers: compose's variables and the application's twelve", () => {

@@ -61,7 +61,7 @@ const COMPOSE_ENVS = [
 ];
 
 // Keys an env file sets for compose itself and the compose text never names.
-const COMPOSE_OWN_KEYS = new Set(["COMPOSE_PROFILES"]);
+const COMPOSE_OWN_KEYS = new Set(["COMPOSE_PROFILES", "COMPOSE_FILE"]);
 
 const usedIn = (text) =>
   new Set(
@@ -314,18 +314,30 @@ test("the artifacts are the one bind mount, the databases and Caddy's store are 
       `docs/deployment.md does not name the volume handout_${volume}`,
     );
   }
-  assert.ok(guide.includes("$HANDOUT_ARTIFACTS_DIR"));
+  assert.ok(guide.includes("`HANDOUT_ARTIFACTS_DIR`"));
 });
 
-test("the deployment guide says how to back up and restore each database, and what losing Caddy's store costs", () => {
-  assert.match(guide, /pg_dump -U handout -d handout/);
-  assert.match(guide, /pg_dump -U keycloak -d keycloak/);
-  assert.match(guide, /pg_restore -U handout -d handout/);
-  assert.match(guide, /pg_restore -U keycloak -d keycloak/);
-  assert.match(guide, /A copy of a running PostgreSQL's files is not a backup/);
-  assert.doesNotMatch(guide, /one `tar` or `rsync` of that path/);
-  assert.match(guide, /Let's Encrypt's weekly limit/);
-  assert.match(guide, /roughly fifty active handouts/);
+test("the deployment guide names the four things that hold state and what losing Caddy's store does and does not cost", () => {
+  assert.match(guide, /### What must persist\n/);
+  assert.doesNotMatch(guide, /pg_dump|pg_restore/);
+  assert.match(guide, /obtained again at startup/);
+  assert.match(guide, /only when a request for that\s+address next arrives/);
+  assert.match(guide, /faster than\s+the allowance refills/);
+  assert.doesNotMatch(guide, /every\s+certificate is requested again at once/);
+});
+
+test("the guide and the ADR agree on the certificate allowance", () => {
+  assert.match(guide, /49 or 48 a week/);
+  assert.match(guide, /refills over the window/);
+  const adr = read(
+    "docs/adr/0029-a-certificate-per-address-obtained-on-demand.md",
+  );
+  assert.match(adr, /49 or 48 new handouts a week/);
+  assert.doesNotMatch(adr, /50 new handouts a week/);
+});
+
+test("the guide names OpenSSL as a prerequisite of the production scenarios", () => {
+  assert.match(guide, /\*\*For the production scenarios, 2 and 3: OpenSSL\*\*/);
 });
 
 test("Keycloak's health check has a start period, and the guide names the repair for an empty administrator", () => {
@@ -496,12 +508,34 @@ test("dev:monoceros copies the workbench's .env without clobbering one and does 
   assert.doesNotMatch(script, /handout-app/);
 });
 
-test(".env.monoceros.example leaves nothing to fill and carries the same variables as .env.example", () => {
+test(".env.monoceros.example leaves nothing to fill and differs from .env.example in exactly four values", () => {
   const workbench = parseEnv(read(".env.monoceros.example"));
   for (const [key, value] of workbench) {
     assert.notEqual(value, "", `${key} is empty in .env.monoceros.example`);
   }
+  // The workbench reaches the services by hostname, not through published ports.
+  const DIFFERENT = new Set([
+    "DATABASE_URL",
+    "POSTGRES_URL",
+    "OIDC_ISSUER_URL",
+    "OIDC_BACKCHANNEL_URL",
+  ]);
   assert.deepEqual([...workbench.keys()].sort(), [...APP_KEYS].sort());
+  for (const key of APP_KEYS) {
+    if (DIFFERENT.has(key)) {
+      assert.notEqual(
+        workbench.get(key),
+        dev.get(key),
+        `${key} must differ from ${DEV_ENV}`,
+      );
+    } else {
+      assert.equal(
+        workbench.get(key),
+        dev.get(key),
+        `${key} must match ${DEV_ENV}`,
+      );
+    }
+  }
 });
 
 test(".env.example is one file for both readers: compose's variables and the application's twelve", () => {
@@ -530,6 +564,14 @@ test("npm run dev starts the services and then the application, and never the ap
   assert.ok(script.trimEnd().endsWith("exec npm start"));
 });
 
+test("no deployment scenario publishes PostgreSQL's port or reads the development override", () => {
+  assert.doesNotMatch(serviceBlock(composeCode, "postgres"), /^\s+ports:/m);
+  assert.doesNotMatch(composeCode, /5432:5432/);
+  for (const n of COMPOSE_SCENARIOS) {
+    assert.equal(envOf(n).has("COMPOSE_FILE"), false, `scenario ${n}`);
+  }
+});
+
 test("the development loop runs the application from source and everything else from the compose", () => {
   // Caddy reaches the application on the host, and the name resolves on Linux.
   assert.equal(dev.get("APP_HOST"), "host.docker.internal");
@@ -538,11 +580,13 @@ test("the development loop runs the application from source and everything else 
     /^\s+- "host\.docker\.internal:host-gateway"$/m,
   );
   assert.match(composeCode, /APP_HOST: \$\{APP_HOST:-app\}/);
-  // PostgreSQL is published on the host's loopback only, and the loop's
-  // connection strings say where.
+  // PostgreSQL is published on the host's loopback only, by the loop's own
+  // override file and not by compose.yaml, and the loop's connection strings
+  // say where.
+  assert.equal(dev.get("COMPOSE_FILE"), "compose.yaml:compose.dev.yaml");
   assert.match(
-    serviceBlock(composeCode, "postgres"),
-    /^\s+- "127\.0\.0\.1:5432:5432"$/m,
+    withoutComments(read("compose.dev.yaml")),
+    /^services:\n {2}postgres:\n {4}ports:\n {6}- "127\.0\.0\.1:5432:5432"\n$/,
   );
   assert.match(dev.get("DATABASE_URL"), /@localhost:5432\//);
   assert.match(dev.get("POSTGRES_URL"), /@localhost:5432\//);

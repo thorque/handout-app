@@ -74,7 +74,7 @@ application runs - `workspace` is the name the workbench container answers to on
 the Docker network, `3000` the port the application listens on - and the `env:`
 block is what hands them from `handout.env` to the Caddy container.
 
-In `$MONOCEROS_HOME/container-configs/handout.yml`, under the `caddy` service:
+In `~/.monoceros/container-configs/handout.yml`, under the `caddy` service:
 
 ```yaml
 volumes:
@@ -85,7 +85,7 @@ env:
   APP_PORT: ${APP_PORT}
 ```
 
-And the three values in `$MONOCEROS_HOME/container-configs/handout.env`,
+And the three values in `~/.monoceros/container-configs/handout.env`,
 beside it:
 
 ```
@@ -100,7 +100,7 @@ directory. It imports everything there at startup, and its database is rebuilt
 on each apply, so this file is what gives the workbench a realm with the client
 and the user `miriam` to sign in with.
 
-In the same `handout.yml`, under the `keycloak` service:
+In `~/.monoceros/container-configs/handout.yml`, under the `keycloak` service:
 
 ```yaml
 volumes:
@@ -163,6 +163,7 @@ identity provider.
 | Variable | Used by | What it is for |
 | --- | --- | --- |
 | `COMPOSE_PROFILES` | dev, 1, 2 | `keycloak` brings up the bundled Keycloak and its database; absent, as in scenario 3, neither runs |
+| `COMPOSE_FILE` | dev | `compose.yaml:compose.dev.yaml`: the second file publishes PostgreSQL on `127.0.0.1:5432` for the application on your machine; no deployment scenario reads it, so none publishes that port |
 | `CADDY_SITES` | dev, 1, 2, 3 | Caddy: the file of site blocks under `caddy/`, e.g. `sites/edge.caddyfile`. Left unset, the Caddyfile serves `sites/local.caddyfile` |
 | `CADDY_SITE_ADDRESS` | dev, 1 | Caddy: the address `local.caddyfile` serves; a port and no host name |
 | `HTTP_PORT`, `HTTPS_PORT` | dev, 1, 2, 3 | the host ports Caddy's 80 and 443 are published on: 8080 and 8443 locally, 80 and 443 in production |

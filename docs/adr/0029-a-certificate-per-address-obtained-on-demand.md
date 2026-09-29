@@ -63,8 +63,10 @@ Caddyfile in the repository blocks it on the public side.
 Let's Encrypt allows 50 new certificates per registered domain per 7 days.
 Renewals are exempt through ARI, which Caddy has had since 2.8 and has on by
 default. There are 300 new orders per account per 3 hours, and a raise is
-applied for through a form. So the limit is 50 new handouts a week, not 50
-handouts.
+applied for through a form. The deployment spends one certificate on the
+publisher origin and a second on the identity provider when the bundled Keycloak
+runs, so 49 or 48 new handouts a week are left at the start, not 50, and the
+allowance refills over the window rather than resetting at a weekly boundary.
 
 ## Consequences
 

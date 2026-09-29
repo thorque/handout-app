@@ -77,10 +77,11 @@ and so on).
 
 The volumes are dropped by `docker compose down -v`, `docker volume rm` and
 `docker volume prune` run while the stack is stopped, and by nothing else.
-Discarding Caddy's store has a cost that must not be lost: every certificate is
-requested again at once, and past roughly fifty active handouts that exceeds Let's
-Encrypt's weekly allowance and some addresses stay unreachable for days. The
-guide says so where it names the volume.
+Discarding Caddy's store has a cost that must not be lost: the two named hosts
+are obtained again at start, and each handout's certificate when a request for
+that address next arrives. Traffic arriving faster than Let's Encrypt's
+allowance refills leaves those addresses unreachable until it does. The guide
+says so where it names the volume.
 
 Starting the local trial or the development loop empty is now `down -v`, plus
 deleting `artifacts/` for the trial. Repairing Keycloak's missing administrator

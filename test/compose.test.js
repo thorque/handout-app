@@ -1,6 +1,6 @@
 // The local trial (scenario 2 of the README's "Four ways to run it"): the
 // compose at the root, run with env/2-local.env.example. These checks hold
-// that env file, the compose, the realm fixture and the README together. The
+// that env file, the compose, the realm fixture and the deployment guide together. The
 // checks that hold all scenarios together are in test/deployment.test.js. Files
 // are read as text, for the reason test/helpers/deployment-files.js gives.
 
@@ -10,7 +10,7 @@ import { CONFIG_VARIABLES } from "../src/config.js";
 import { read, parseEnv } from "./helpers/deployment-files.js";
 
 const compose = read("compose.yaml");
-const readme = read("README.md");
+const guide = read("docs/deployment.md");
 const local = parseEnv(read("env/2-local.env.example"));
 const realm = JSON.parse(read("keycloak/realm.json"));
 const client = realm.clients.find((c) => c.clientId === "handout-web");
@@ -84,11 +84,11 @@ test("the trial keeps its state beside the compose file, and the repository igno
   assert.match(read(".gitignore"), /^state\/$/m);
 });
 
-test("the README names the address, the sign-in and the provider the compose brings up", () => {
-  assert.ok(readme.includes(ORIGIN));
-  assert.ok(readme.includes("miriam"));
-  assert.ok(readme.includes("http://localhost:8081"));
+test("the deployment guide names the address, the sign-in and the provider the compose brings up", () => {
+  assert.ok(guide.includes(ORIGIN));
+  assert.ok(guide.includes("miriam"));
+  assert.ok(guide.includes("http://localhost:8081"));
   assert.ok(
-    readme.includes("docker compose --env-file env/2-local.env.example up"),
+    guide.includes("docker compose --env-file env/2-local.env.example up"),
   );
 });

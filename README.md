@@ -33,8 +33,8 @@ Updating a handout in place, deleting one and reissuing its password work too.
 Not there yet: the MCP endpoint for agents, and a mode for operators who cannot
 get a wildcard DNS entry. The application is published as a container image, and
 one compose file and one Caddyfile serve the four ways below (the workbench
-uses the Caddyfile only). The two production ways have been written against the documentation of
-their parts and not yet run against a real domain.
+uses the Caddyfile only). The two production ways have been written against the
+documentation of their parts and not yet run against a real domain.
 
 ## Getting it running
 
@@ -50,72 +50,10 @@ of Caddy site blocks and an env file, and each scenario has exactly one of each:
 | 3 | Production, bundled Keycloak | [`env/3-production.env.example`](env/3-production.env.example) | [`caddy/sites/edge-keycloak.caddyfile`](caddy/sites/edge-keycloak.caddyfile) | the bundled Keycloak |
 | 4 | Production, an identity provider you have | [`env/4-production-external-idp.env.example`](env/4-production-external-idp.env.example) | [`caddy/sites/edge.caddyfile`](caddy/sites/edge.caddyfile) | yours, no Keycloak runs |
 
-Scenarios 1 and 2 share a site file because they differ only in a value. The
-site file is chosen by `CADDY_SITES` in the env file; the workbench sets nothing
-and gets `local.caddyfile` by default. The two production scenarios are set up
-in [`docs/operator-guide.md`](docs/operator-guide.md). Why it is built this way:
+How to set up each of them, step by step, is in
+[`docs/deployment.md`](docs/deployment.md), including a block for each of them
+that fills in the env file where there is something to fill. Why it is built this way:
 `docs/adr/0032-one-caddyfile-one-compose-four-scenarios.md`.
-
-### Try it (scenario 2)
-
-You need Docker with Compose 2.20.0 or later and nothing else. In a clone of this repository:
-
-    docker compose --env-file env/2-local.env.example up
-
-That brings up the publisher interface at `http://handout.localhost:8080/`.
-Sign in as `miriam` with the password `handout` (a second publisher, `joerg`,
-has the same password), publish something from `data/testfiles/`, then open
-the address that comes back. Names under `.localhost` resolve to loopback in
-current browsers on macOS and Windows, so there is nothing to add to `hosts`
-and no DNS to set up.
-
-What comes up: Caddy on `http://handout.localhost:8080/`, the application
-behind it, PostgreSQL, and Keycloak on `http://localhost:8081` (admin console
-`admin` / `admin`) as the configured OIDC provider. The env file fills the same
-twelve variables an operator fills; there is no demo mode in the application.
-Its values are local development values in the open, for the reason
-`keycloak/README.md` gives for the realm fixture, and the address is fixed
-because its redirect URI is registered in `keycloak/realm.json`.
-
-What survives, what does not: everything lives under `./state`, beside
-`compose.yaml` and out of git, so the handouts and their addresses survive
-`docker compose down`. Keycloak's realm is imported once; to start over from
-the fixture, run `docker compose down` and delete `state/` (on Linux that needs
-`sudo`, the containers own what they wrote there).
-
-### A newer version
-
-`compose.yaml` pins the application to its released version. To move to a
-newer one, change the tag on the `app` service (and on `data-owner`, which
-uses the same image), and run the same `docker compose` command as before with
-`pull` and `up -d`:
-
-    docker compose --env-file <your env file> pull
-    docker compose --env-file <your env file> up -d
-
-A release is tagged with its exact version and moves `latest`, and every
-commit on `main` is published as `main` and `sha-<short>` so there is
-something to pull between releases; the version is semantic and below 1.0
-(see `docs/adr/0027-the-version-is-a-git-tag.md`).
-
-### Running it on your own server (scenarios 3 and 4)
-
-A public instance needs a domain, two DNS records (the domain and a wildcard
-under it) and Docker. Caddy obtains a certificate for every hostname by itself,
-with no access to the DNS zone and no token. The full instructions, the
-variables you fill and what to back up are in
-[`docs/operator-guide.md`](docs/operator-guide.md).
-
-### Developing on it (scenario 1)
-
-To develop on it, copy [`env/1-workbench.env.example`](env/1-workbench.env.example)
-to `.env`, fill it (point `DATABASE_URL` at a PostgreSQL you can reach), and:
-
-    npm install
-    npm start          # migrations run on start
-    npm test           # needs POSTGRES_URL as well, see below
-    npm run lint
-    npm run check:refs # nothing in the tree points at a tracker or a wiki
 
 ## Configuration
 

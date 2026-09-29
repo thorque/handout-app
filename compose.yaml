@@ -174,8 +174,8 @@ services:
   app:
     container_name: handout-app
     # Never `build:`. A pinned version rather than `latest`, so the same
-    # product comes up tomorrow as today; the "A newer version" section of the
-    # README says how to move.
+    # product comes up tomorrow as today; "A newer version" in
+    # docs/deployment.md says how to move.
     image: ghcr.io/thorque/handout-app:0.2.0
     # The OIDC discovery document is fetched at start, so an application that
     # comes up before the provider is ready aborts, so with the bundled Keycloak

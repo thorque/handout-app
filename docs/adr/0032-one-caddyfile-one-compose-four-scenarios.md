@@ -119,7 +119,7 @@ What it costs, plainly:
   those env files complete. What it cannot catch at runtime: an empty
   `KC_BOOTSTRAP_ADMIN_*` makes Keycloak start healthy with no administrator, and
   since Keycloak reads them on the first start only, the repair is to delete
-  `$HANDOUT_STATE_DIR/keycloak-db`. The env file and the operator guide say so.
+  `$HANDOUT_STATE_DIR/keycloak-db`. The env file and `docs/deployment.md` say so.
   An empty `KC_DB_PASSWORD` is caught, as PostgreSQL refuses to start without a
   password.
 - **Docker Compose 2.20.0 or later is required.** The application still waits
@@ -127,7 +127,7 @@ What it costs, plainly:
   started one. Both dependencies are `required: false`, so that scenario 4 can
   leave the service out through its profile: Compose then adds no edge instead of
   refusing the file. The keyword was introduced in 2.20.0 and older versions
-  reject the whole file. The operator guide names the version.
+  reject the whole file. `docs/deployment.md` names the version.
 - **Keycloak's port is published on the host's loopback interface in every
   scenario**, since a port mapping cannot be switched off by a variable. The
   local trial needs it; in production nothing outside the machine can reach it.

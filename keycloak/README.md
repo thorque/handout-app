@@ -6,6 +6,6 @@ without a manual setup step. A real deployment registers its own client at its
 own identity provider and never uses this file.
 
 `realm.production.json` is the other realm, for a deployment with the bundled
-Keycloak (`docs/operator-guide.md`): no users, its client secret and its domain
+Keycloak (`docs/deployment.md`): no users, its client secret and its domain
 taken from placeholders at import, `sslRequired` set to `external`. The two do
 not collapse into one; an env file under `env/` names the one to import.

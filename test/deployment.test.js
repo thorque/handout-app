@@ -2,7 +2,7 @@
 // caddy/Caddyfile and one compose.yaml (docs/adr/0032). What differs is a file
 // of site blocks under caddy/sites/ and an env file under env/. These checks
 // hold the shared parts together, hold each env file complete against the
-// compose, and hold the operator guide and the README to what the files
+// compose, and hold the deployment guide and the README to what the files
 // actually need. Files are read as text, for the reason
 // test/helpers/deployment-files.js gives.
 
@@ -21,7 +21,7 @@ import {
 const compose = read("compose.yaml");
 const composeCode = withoutComments(compose);
 const readme = read("README.md");
-const guide = read("docs/operator-guide.md");
+const guide = read("docs/deployment.md");
 const ci = read(".github/workflows/ci.yml");
 
 const caddyfile = read("caddy/Caddyfile");
@@ -176,28 +176,95 @@ test("the README puts each scenario's env file and site file on one row", () => 
   }
 });
 
-test("the README and the operator guide document every variable of every env file", () => {
+test("the deployment guide puts each scenario's env file and site file on one row of its table", () => {
+  for (const [n, { env, site }] of Object.entries(SCENARIOS)) {
+    const row = guide
+      .split("\n")
+      .find((line) => line.startsWith(`| ${n} |`) && line.includes(env));
+    assert.ok(row, `no deployment guide row for scenario ${n}`);
+    assert.ok(row.includes(site), `deployment guide row ${n} lacks ${site}`);
+  }
+});
+
+// The fenced blocks of one "## Scenario N: ..." section of the guide.
+const scenarioBlocks = (n) => {
+  const section = guide
+    .split(/^## /m)
+    .find((part) => part.startsWith(`Scenario ${n}:`));
+  assert.ok(section, `no section for scenario ${n} in the deployment guide`);
+  return [...section.matchAll(/^```sh\n([\s\S]*?)^```$/gm)].map((m) => m[1]);
+};
+
+test("each scenario's section carries a block that uses the env file that scenario runs, and no other", () => {
+  for (const [n, { env }] of Object.entries(SCENARIOS)) {
+    const blocks = scenarioBlocks(n);
+    const uses = blocks.filter((block) => block.includes(env));
+    assert.ok(uses.length >= 1, `no block of scenario ${n} names ${env}`);
+    for (const [other, { env: otherEnv }] of Object.entries(SCENARIOS)) {
+      if (other === n) continue;
+      for (const block of blocks) {
+        assert.ok(
+          !block.includes(otherEnv),
+          `a block of scenario ${n} names ${otherEnv}`,
+        );
+      }
+    }
+  }
+  // The blocks that copy an env file to .env are the ones that overwrite it,
+  // and they have to say so: running one twice against a live instance mints
+  // new secrets for databases that still hold the old ones.
+  for (const n of [1, 3, 4]) {
+    const copy = scenarioBlocks(n).find((b) =>
+      b.includes(`cp ${SCENARIOS[n].env} .env`),
+    );
+    assert.ok(copy, `scenario ${n} has no block that copies its env file`);
+    assert.match(copy, /^# Overwrites an existing \.env/m, `scenario ${n}`);
+  }
+});
+
+test("the production blocks generate every secret with hex and leave no other empty value", () => {
+  for (const n of [3, 4]) {
+    const block = scenarioBlocks(n).find((b) => b.includes("openssl"));
+    assert.ok(block, `scenario ${n} has no generating block`);
+    const filled = new Set(
+      [...block.matchAll(/\^([A-Z][A-Z0-9_]*)=/g)].map((m) => m[1]),
+    );
+    for (const [key, value] of envOf(n)) {
+      if (value !== "") continue;
+      const yours =
+        n === 4 && /^OIDC_(ISSUER_URL|CLIENT_ID|CLIENT_SECRET)$/.test(key);
+      assert.equal(
+        filled.has(key),
+        !yours,
+        `${key} of scenario ${n} is ${yours ? "the provider's and must stay empty" : "left empty by the block"}`,
+      );
+    }
+    assert.doesNotMatch(block, /openssl rand -base64/);
+  }
+});
+
+test("the README and the deployment guide document every variable of every env file", () => {
   for (const n of Object.keys(SCENARIOS)) {
     for (const key of envOf(n).keys()) {
       assert.ok(
         readme.includes(key) || guide.includes(key),
-        `neither the README nor docs/operator-guide.md mentions ${key} of ${SCENARIOS[n].env}`,
+        `neither the README nor docs/deployment.md mentions ${key} of ${SCENARIOS[n].env}`,
       );
     }
   }
 });
 
-test("the operator guide names every variable a production operator fills", () => {
+test("the deployment guide names every variable a production operator fills", () => {
   for (const n of [3, 4]) {
     for (const [key, value] of envOf(n)) {
       if (value === "") {
-        assert.ok(guide.includes(key), `docs/operator-guide.md lacks ${key}`);
+        assert.ok(guide.includes(key), `docs/deployment.md lacks ${key}`);
       }
     }
   }
 });
 
-test("the operator guide names every bind-mount path of the compose", () => {
+test("the deployment guide names every bind-mount path of the compose", () => {
   const paths = new Set(
     [
       ...composeCode.matchAll(
@@ -209,7 +276,7 @@ test("the operator guide names every bind-mount path of the compose", () => {
   for (const path of paths) {
     assert.ok(
       guide.includes(`$HANDOUT_STATE_DIR/${path}`),
-      `docs/operator-guide.md does not mention $HANDOUT_STATE_DIR/${path}`,
+      `docs/deployment.md does not mention $HANDOUT_STATE_DIR/${path}`,
     );
   }
   assert.doesNotMatch(composeCode, /^volumes:/m, "named volumes are back");
@@ -226,7 +293,7 @@ test("Keycloak's health check has a start period, and the guide names the repair
   assert.match(guide, /KC_BOOTSTRAP_ADMIN_PASSWORD/);
 });
 
-test("the operator guide names the Compose version that required: false needs", () => {
+test("the deployment guide names the Compose version that required: false needs", () => {
   assert.match(composeCode, /required: false/);
   assert.match(guide, /Compose 2\.20\.0 or later/);
 });

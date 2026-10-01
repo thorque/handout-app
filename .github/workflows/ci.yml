@@ -30,9 +30,9 @@ jobs:
 
     env:
       # test/helpers/app.js reads POSTGRES_URL, not DATABASE_URL — an
-      # undocumented thirteenth environment variable the test suite needs
+      # undocumented fourteenth environment variable the test suite needs
       # that the application itself never does (see .env.example and the
-      # README's configuration table for the twelve the application reads).
+      # README's configuration table for the thirteen the application reads).
       # The role has to be allowed to CREATE DATABASE: the suite creates and
       # drops handout_test around every test file. The `postgres` superuser
       # the service starts with already can.

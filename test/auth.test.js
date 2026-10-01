@@ -589,3 +589,217 @@ test("the two dot-segment addresses Fastify's own router rejects never reach the
     await t2.close();
   }
 });
+
+function decodeJwtPayload(token) {
+  return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+}
+
+function cookiePairs(res) {
+  return res.headers.getSetCookie().map((line) => line.split(";")[0]);
+}
+
+test("a sign-in whose ID token carries the required role gets a session and lands on the dashboard", async () => {
+  const t2 = await buildTestServer();
+  try {
+    const callbackRes = await walkProtected(t2, "/");
+    assert.strictEqual(callbackRes.status, 302);
+    assert.strictEqual(callbackRes.headers.get("location"), "/");
+    const session = cookiePairs(callbackRes).find((pair) =>
+      pair.startsWith("handout_session="),
+    );
+    assert.ok(session && session.length > "handout_session=".length);
+
+    const home = await fetch(`${t2.baseUrl}/`, {
+      headers: { cookie: session },
+      redirect: "manual",
+    });
+    assert.strictEqual(home.status, 200);
+    assert.ok((await home.text()).includes(strings["dash.heading"]));
+  } finally {
+    await t2.close();
+  }
+});
+
+test("a sign-in without the roles claim gets the no-access page and no session", async () => {
+  const t2 = await buildTestServer({ oidcUser: { roles: null } });
+  try {
+    const callbackRes = await walkProtected(t2, "/");
+    assert.strictEqual(callbackRes.status, 403);
+    assert.ok(callbackRes.headers.get("content-type").startsWith("text/html"));
+    const body = await callbackRes.text();
+    assert.ok(body.includes(strings["error.noAccess"]));
+    assert.ok(body.includes('action="/auth/logout"'));
+    assert.ok(body.includes('class="no-access-signout-form"'));
+    assert.ok(body.includes('class="no-access-signout-button"'));
+    assert.ok(!body.includes("header-signout"));
+
+    const pairs = cookiePairs(callbackRes);
+    const session = pairs.find((pair) => pair.startsWith("handout_session="));
+    assert.ok(session === undefined || session === "handout_session=");
+
+    const home = await fetch(`${t2.baseUrl}/`, {
+      headers: { cookie: pairs.join("; ") },
+      redirect: "manual",
+    });
+    assert.strictEqual(home.status, 302);
+    assert.strictEqual(home.headers.get("location"), "/auth/login");
+
+    for (const [, href] of body.matchAll(
+      /<link rel="stylesheet" href="([^"]+)"/g,
+    )) {
+      const asset = await fetch(`${t2.baseUrl}${href}`);
+      assert.strictEqual(asset.status, 200, href);
+      assert.ok(asset.headers.get("content-type").startsWith("text/css"), href);
+    }
+  } finally {
+    await t2.close();
+  }
+});
+
+test("a roles claim without the exact required value is refused", async () => {
+  const t2 = await buildTestServer({
+    oidcUser: { roles: ["viewer", "Publisher"] },
+  });
+  try {
+    const callbackRes = await walkProtected(t2, "/");
+    assert.strictEqual(callbackRes.status, 403);
+  } finally {
+    await t2.close();
+  }
+});
+
+test("a roles claim that is a string is refused, even one containing the role's name", async () => {
+  const t2 = await buildTestServer({
+    oidcUser: { roles: "not-a-publisher" },
+  });
+  try {
+    const callbackRes = await walkProtected(t2, "/");
+    assert.strictEqual(callbackRes.status, 403);
+  } finally {
+    await t2.close();
+  }
+});
+
+test("the required role is the configured one, not a fixed name", async () => {
+  const refused = await buildTestServer({
+    env: { OIDC_REQUIRED_ROLE: "editor" },
+  });
+  try {
+    const callbackRes = await walkProtected(refused, "/");
+    assert.strictEqual(callbackRes.status, 403);
+  } finally {
+    await refused.close();
+  }
+
+  const accepted = await buildTestServer({
+    env: { OIDC_REQUIRED_ROLE: "editor" },
+    oidcUser: { roles: ["editor"] },
+  });
+  try {
+    const callbackRes = await walkProtected(accepted, "/");
+    assert.strictEqual(callbackRes.status, 302);
+    const session = cookiePairs(callbackRes).find((pair) =>
+      pair.startsWith("handout_session="),
+    );
+    assert.ok(session && session.length > "handout_session=".length);
+  } finally {
+    await accepted.close();
+  }
+});
+
+test("a refused sign-in ends an older session in the same browser", async () => {
+  const t2 = await buildTestServer({ oidcUser: { roles: null } });
+  try {
+    const older = t2.signSession({
+      sub: "u1",
+      name: "A",
+      email: "a@example.invalid",
+    });
+    const loginRes = await fetch(`${t2.baseUrl}/auth/login`, {
+      redirect: "manual",
+    });
+    const oidcCookie = cookieValue(
+      loginRes.headers.get("set-cookie"),
+      "handout_oidc",
+    );
+    const authRes = await fetch(loginRes.headers.get("location"), {
+      redirect: "manual",
+    });
+    const callbackRes = await fetch(authRes.headers.get("location"), {
+      headers: { cookie: `${oidcCookie}; ${older}` },
+      redirect: "manual",
+    });
+    assert.strictEqual(callbackRes.status, 403);
+    assert.ok(
+      callbackRes.headers.get("set-cookie").includes("handout_session=;"),
+    );
+  } finally {
+    await t2.close();
+  }
+});
+
+test("signing out from the no-access page ends the session at the provider with the refused sign-in's ID token", async () => {
+  const t2 = await buildTestServer({ oidcUser: { roles: null } });
+  try {
+    const callbackRes = await walkProtected(t2, "/");
+    assert.strictEqual(callbackRes.status, 403);
+    const hintPair = cookiePairs(callbackRes).find((pair) =>
+      pair.startsWith("handout_logout_hint="),
+    );
+    assert.ok(hintPair && hintPair.length > "handout_logout_hint=".length);
+
+    const home = await fetch(`${t2.baseUrl}/`, {
+      headers: { cookie: hintPair },
+      redirect: "manual",
+    });
+    assert.strictEqual(home.status, 302);
+    assert.strictEqual(home.headers.get("location"), "/auth/login");
+
+    const res = await fetch(`${t2.baseUrl}/auth/logout`, {
+      method: "POST",
+      headers: { cookie: hintPair },
+      redirect: "manual",
+    });
+    assert.strictEqual(res.status, 302);
+    const target = new URL(res.headers.get("location"));
+    assert.strictEqual(target.origin, t2.stub.url);
+    assert.strictEqual(target.pathname, "/logout");
+    assert.strictEqual(
+      target.searchParams.get("post_logout_redirect_uri"),
+      `${t2.baseUrl}/`,
+    );
+    // openid-client adds client_id to every end-session URL itself; what
+    // matters is that the refused sign-in's ID token rides along as the hint.
+    const hint = target.searchParams.get("id_token_hint");
+    assert.strictEqual(hint.split(".").length, 3);
+    assert.strictEqual(decodeJwtPayload(hint).sub, "test-user");
+    assert.strictEqual(decodeJwtPayload(hint).roles, undefined);
+    const cleared = res.headers.get("set-cookie");
+    assert.ok(cleared.includes("handout_logout_hint=;"));
+    assert.ok(cleared.includes("handout_session=;"));
+  } finally {
+    await t2.close();
+  }
+});
+
+test("the logout hint cookie's value is not a session when it is moved into handout_session", async () => {
+  const t2 = await buildTestServer({ oidcUser: { roles: null } });
+  try {
+    const callbackRes = await walkProtected(t2, "/");
+    assert.strictEqual(callbackRes.status, 403);
+    const hintPair = cookiePairs(callbackRes).find((pair) =>
+      pair.startsWith("handout_logout_hint="),
+    );
+    const value = hintPair.slice("handout_logout_hint=".length);
+    assert.ok(value.length > 0);
+
+    const home = await fetch(`${t2.baseUrl}/`, {
+      headers: { cookie: `handout_session=${value}` },
+      redirect: "manual",
+    });
+    assert.strictEqual(home.status, 302);
+    assert.strictEqual(home.headers.get("location"), "/auth/login");
+  } finally {
+    await t2.close();
+  }
+});

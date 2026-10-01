@@ -2,6 +2,16 @@
   "realm": "handout",
   "enabled": true,
   "sslRequired": "none",
+  "roles": {
+    "client": {
+      "handout-web": [
+        {
+          "name": "publisher",
+          "description": "May sign in to Handout and publish."
+        }
+      ]
+    }
+  },
   "clients": [
     {
       "clientId": "handout-web",
@@ -24,7 +34,25 @@
         "http://localhost:3000/auth/callback",
         "http://handout.localhost:8080/auth/callback"
       ],
-      "webOrigins": ["+"]
+      "webOrigins": ["+"],
+      "protocolMappers": [
+        {
+          "name": "roles in the ID token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "usermodel.clientRoleMapping.clientId": "handout-web",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "false"
+          }
+        }
+      ]
     }
   ],
   "users": [
@@ -36,6 +64,7 @@
       "firstName": "Miriam",
       "lastName": "Publisher",
       "email": "miriam@example.invalid",
+      "clientRoles": { "handout-web": ["publisher"] },
       "credentials": [
         {
           "type": "password",
@@ -52,6 +81,7 @@
       "firstName": "Joerg",
       "lastName": "Publisher",
       "email": "joerg@example.invalid",
+      "clientRoles": { "handout-web": ["publisher"] },
       "credentials": [
         {
           "type": "password",

@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { loadConfig, CONFIG_VARIABLES } from "../src/config.js";
 
 function completeEnv(overrides = {}) {
@@ -13,6 +15,7 @@ function completeEnv(overrides = {}) {
     OIDC_BACKCHANNEL_URL: "http://backchannel.example/realms/handout",
     OIDC_CLIENT_ID: "handout-web",
     OIDC_CLIENT_SECRET: "secret",
+    OIDC_REQUIRED_ROLE: "publisher",
     OIDC_ALLOW_INSECURE_HTTP: "true",
     SESSION_SECRET: "0123456789abcdef",
     SESSION_COOKIE_SECURE: "false",
@@ -20,11 +23,11 @@ function completeEnv(overrides = {}) {
   };
 }
 
-test("loadConfig({}) throws once naming all twelve variables", () => {
+test("loadConfig({}) throws once naming all thirteen variables", () => {
   assert.throws(
     () => loadConfig({}),
     (err) => {
-      assert.equal(CONFIG_VARIABLES.length, 12);
+      assert.equal(CONFIG_VARIABLES.length, 13);
       for (const name of CONFIG_VARIABLES) {
         assert.ok(
           err.message.includes(name),
@@ -72,4 +75,36 @@ test("a complete environment returns typed values", () => {
   assert.strictEqual(typeof config.sessionCookieSecure, "boolean");
   assert.strictEqual(config.port, 3000);
   assert.strictEqual(config.oidcAllowInsecureHttp, true);
+  assert.strictEqual(config.oidcRequiredRole, "publisher");
+});
+
+test("a missing OIDC_REQUIRED_ROLE is named, and nothing else is", () => {
+  const env = completeEnv();
+  delete env.OIDC_REQUIRED_ROLE;
+  assert.throws(
+    () => loadConfig(env),
+    (err) => {
+      assert.equal(
+        err.message,
+        "Missing required environment variables: OIDC_REQUIRED_ROLE",
+      );
+      return true;
+    },
+  );
+});
+
+test("the start aborts and names OIDC_REQUIRED_ROLE when it is missing", () => {
+  const envWithoutRole = completeEnv();
+  delete envWithoutRole.OIDC_REQUIRED_ROLE;
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL("../src/server.js", import.meta.url))],
+    {
+      env: { PATH: process.env.PATH, ...envWithoutRole },
+      encoding: "utf8",
+      timeout: 10000,
+    },
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /OIDC_REQUIRED_ROLE/);
 });

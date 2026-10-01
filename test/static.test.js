@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildTestServer } from "./helpers/app.js";
@@ -593,5 +594,57 @@ test("handout.js reveals the combined copy handle", async () => {
     assert.match(body, /\.hidden\s*=\s*false/);
   } finally {
     await t.close();
+  }
+});
+
+test("the no-access page's sign-out is the design system's second action, with its own hover and active", async () => {
+  const css = await readFile(
+    new URL("../src/public/handout.css", import.meta.url),
+    "utf8",
+  );
+  const tokens = await readFile(
+    new URL("../src/public/tokens.css", import.meta.url),
+    "utf8",
+  );
+  function block(selector) {
+    const start = css.indexOf(`\n${selector} {`);
+    assert.notStrictEqual(start, -1, `expected a rule for ${selector}`);
+    return css.slice(start, css.indexOf("}", start));
+  }
+
+  const base = block(".no-access-signout-button");
+  for (const declaration of [
+    "height: var(--control-height);",
+    "padding: 0 20px;",
+    "background: var(--surface);",
+    "color: var(--ink);",
+    "border: 1px solid var(--line-strong);",
+    "border-radius: var(--radius-1);",
+    "font-weight: var(--weight-semibold);",
+    "cursor: pointer;",
+  ]) {
+    assert.ok(base.includes(declaration), `expected ${declaration}`);
+  }
+  assert.ok(!base.includes("outline"));
+  assert.ok(
+    block(".no-access-signout-button:hover").includes(
+      "background: var(--paper-sunken);",
+    ),
+  );
+  assert.ok(
+    block(".no-access-signout-button:active").includes(
+      "background: var(--sunken-hover);",
+    ),
+  );
+  assert.ok(
+    block(".no-access-signout-form").includes("margin: var(--space-4) 0 0;"),
+  );
+  for (const declaration of [
+    "--control-height: 40px;",
+    "--radius-1: 2px;",
+    "--weight-semibold: 600;",
+    "--space-4: 16px;",
+  ]) {
+    assert.ok(tokens.includes(declaration), `expected ${declaration}`);
   }
 });

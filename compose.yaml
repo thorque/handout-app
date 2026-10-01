@@ -56,7 +56,7 @@ services:
   # later start.
   data-owner:
     container_name: handout-data-owner
-    image: ghcr.io/thorque/handout-app:0.2.0
+    image: ghcr.io/thorque/handout-app:0.3.0
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
     command: ["chown -R node:node /data"]
@@ -192,7 +192,7 @@ services:
     # Never `build:`. A pinned version rather than `latest`, so the same
     # product comes up tomorrow as today; "A newer version" in
     # docs/deployment.md says how to move.
-    image: ghcr.io/thorque/handout-app:0.2.0
+    image: ghcr.io/thorque/handout-app:0.3.0
     # The OIDC discovery document is fetched at start, so an application that
     # comes up before the provider is ready aborts, so with the bundled Keycloak
     # the start waits for it to be healthy (see depends_on below). The restart

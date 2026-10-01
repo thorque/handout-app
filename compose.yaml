@@ -211,6 +211,8 @@ services:
       OIDC_BACKCHANNEL_URL: ${OIDC_BACKCHANNEL_URL:?set the issuer as this container reaches it in .env}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set the client id in .env}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set the client secret in .env}
+      # The value the ID token's roles claim must contain (docs/adr/0034).
+      OIDC_REQUIRED_ROLE: ${OIDC_REQUIRED_ROLE:?set the role a publisher needs in .env}
       # True where the only plain-HTTP request is the container-to-container
       # hop to the bundled Keycloak (the back channel of docs/adr/0005) or the
       # whole trial is plain HTTP; false against a provider reachable over HTTPS.

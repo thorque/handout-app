@@ -3,6 +3,16 @@
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": false,
+  "roles": {
+    "client": {
+      "handout-web": [
+        {
+          "name": "publisher",
+          "description": "May sign in to Handout and publish."
+        }
+      ]
+    }
+  },
   "clients": [
     {
       "clientId": "handout-web",
@@ -18,7 +28,25 @@
         "post.logout.redirect.uris": "https://${HANDOUT_DOMAIN}/"
       },
       "redirectUris": ["https://${HANDOUT_DOMAIN}/auth/callback"],
-      "webOrigins": ["+"]
+      "webOrigins": ["+"],
+      "protocolMappers": [
+        {
+          "name": "roles in the ID token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "usermodel.clientRoleMapping.clientId": "handout-web",
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "false"
+          }
+        }
+      ]
     }
   ]
 }

@@ -174,7 +174,7 @@ identity provider.
 | `KEYCLOAK_COMMAND`, `KEYCLOAK_REALM_FILE`, `KC_HOSTNAME`, `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | dev, 1, 2 | the bundled Keycloak: how it starts, which realm it imports, the URL it is reached at, its database password and its first administrator |
 | `APP_HOST`, `APP_PORT`, `KEYCLOAK_HOST`, `KEYCLOAK_PORT` | Caddy | where Caddy reaches the application and Keycloak; compose sets them to the service names. The development loop sets `APP_HOST` to `host.docker.internal`, a workbench's host configuration sets the first two |
 
-The application's own twelve variables, all in `.env.example` with the same
+The application's own thirteen variables, all in `.env.example` with the same
 sentence as a comment above each, and in every env file of a deployment with the
 value that deployment needs:
 
@@ -189,17 +189,18 @@ value that deployment needs:
 | `OIDC_BACKCHANNEL_URL` | the same realm as the application reaches it |
 | `OIDC_CLIENT_ID` | the client registered at the provider |
 | `OIDC_CLIENT_SECRET` | its secret |
+| `OIDC_REQUIRED_ROLE` | the role a person needs in the ID token's `roles` claim to sign in; checked at sign-in only |
 | `OIDC_ALLOW_INSECURE_HTTP` | allow plain HTTP against the provider (`true`/`false`) |
 | `SESSION_SECRET` | signs the session cookie |
 | `SESSION_COOKIE_SECURE` | `Secure` on the cookies (`true`/`false`) |
 
-A thirteenth variable, `POSTGRES_URL`, is needed only by the **test suite**
+A fourteenth variable, `POSTGRES_URL`, is needed only by the **test suite**
 (`test/helpers/app.js`), never by the application itself: it is the
 connection the tests use to create and drop the throwaway `handout_test`
 database around each test file, so the role behind it must be allowed to
 `CREATE DATABASE`. Anyone cloning this repository needs it set to run
 `npm test`, even though the application never reads it. It is documented in
-`.env.example` alongside the other twelve.
+`.env.example` alongside the other thirteen.
 
 ## Addresses come from the request, never from configuration
 

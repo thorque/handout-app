@@ -155,6 +155,10 @@ export function startStubOidc({
         }
         codes.delete(code);
         const now = Math.floor(Date.now() / 1000);
+        // The default carries the role so that every existing sign-in walk
+        // still gets a session; `roles: null` leaves the claim out.
+        const roles =
+          user && Object.hasOwn(user, "roles") ? user.roles : ["publisher"];
         const idToken = signIdToken({
           iss: issuer || origin,
           sub: (user && user.sub) || "test-user",
@@ -163,6 +167,7 @@ export function startStubOidc({
           iat: now,
           name: (user && user.name) || "Test User",
           email: (user && user.email) || "test@example.invalid",
+          ...(roles == null ? {} : { roles }),
         });
         res.writeHead(200, { "content-type": "application/json" });
         res.end(

@@ -206,7 +206,12 @@ export const strings = {
     "This handout has been updated in the meantime. Reload the page and choose again.",
   "error.handoutDeleted": "This handout has been deleted. Reload the page.",
   "error.signInFailed": "The sign-in did not complete. Start it again.",
+  "error.noAccess": "No access to Handout",
   "error.icon": "✕", // aria-hidden next to a refusal; the message already says it in words
+
+  // the no-access page (docs/adr/0034)
+  // Repeats header.signOut on purpose: the key prefix names the screen.
+  "noAccess.signOut": "Sign out",
 };
 
 export function t(key, values = {}) {

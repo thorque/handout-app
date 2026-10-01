@@ -7,9 +7,18 @@ import {
   readSession,
   writeSession,
   clearSession,
+  writeLogoutHint,
+  readLogoutHint,
+  clearLogoutHint,
 } from "../session.js";
 import { renderError } from "../views/error.js";
 import { strings } from "../views/strings.js";
+
+// The claim name is fixed, the value is configuration: an exact match on an
+// array and nothing else (docs/adr/0034).
+function hasRequiredRole(claims, role) {
+  return Array.isArray(claims.roles) && claims.roles.includes(role);
+}
 
 export default async function authRoutes(fastify) {
   const { oidcConfig, config } = fastify;
@@ -65,6 +74,17 @@ export default async function authRoutes(fastify) {
     }
 
     const claims = tokens.claims();
+    if (!hasRequiredRole(claims, config.oidcRequiredRole)) {
+      clearSession(reply);
+      writeLogoutHint(reply, config, tokens.id_token);
+      return reply
+        .code(403)
+        .header("content-type", "text/html; charset=utf-8")
+        .send(
+          renderError({ message: strings["error.noAccess"], signOut: true }),
+        );
+    }
+    clearLogoutHint(reply);
     // The ID token travels in the session cookie for exactly one purpose: it
     // is what the provider wants back as `id_token_hint` when the session is
     // ended, and without it signing out cannot be silent. Nothing reads it as
@@ -91,7 +111,9 @@ export default async function authRoutes(fastify) {
   // to end its own session (RP-initiated logout).
   fastify.post("/auth/logout", async (request, reply) => {
     const session = readSession(request, config);
+    const hint = readLogoutHint(request, config);
     clearSession(reply);
+    clearLogoutHint(reply);
 
     const endSessionEndpoint =
       oidcConfig.serverMetadata().end_session_endpoint || null;
@@ -104,11 +126,14 @@ export default async function authRoutes(fastify) {
     // provider act without asking the person to confirm. A session cookie
     // written before this existed carries no ID token; `client_id` is the
     // documented stand-in, and the provider then asks for confirmation
-    // rather than refusing.
+    // rather than refusing. The hint comes from the session, or from the
+    // refused sign-in's cookie; without any hint the provider gets `client_id`
+    // alone. (openid-client appends `client_id` to every end-session URL.)
     const parameters = {
       post_logout_redirect_uri: `${requestOrigin(request)}/`,
     };
-    if (session && session.idToken) parameters.id_token_hint = session.idToken;
+    const idToken = (session && session.idToken) || hint;
+    if (idToken) parameters.id_token_hint = idToken;
     else parameters.client_id = config.oidcClientId;
 
     return reply.redirect(

@@ -72,7 +72,7 @@ to set up.
 
 What comes up: Caddy on `http://handout.localhost:8080/`, the application behind
 it, PostgreSQL, and Keycloak on `http://localhost:8081` (admin console `admin` /
-`admin`) as the configured OIDC provider. The env file fills the same twelve
+`admin`) as the configured OIDC provider. The env file fills the same thirteen
 variables an operator fills; there is no demo mode in the application. The
 address is fixed because its redirect URI is registered in
 `keycloak/realm.json`.
@@ -154,7 +154,7 @@ application waits until Keycloak is healthy, which on the very first start takes
 a while. Then continue with "The identity provider's first sign-in (scenario 2)" below.
 
 The variables of `.env` that are not empty in the example are what this scenario
-is; change one only if you know why. Two of the application's twelve differ
+is; change one only if you know why. Two of the application's thirteen differ
 from the local trial: `SESSION_COOKIE_SECURE` is `true`, because every request
 the browser makes is HTTPS, and `OIDC_ISSUER_URL` is Keycloak under its own
 public name, `https://<KEYCLOAK_DOMAIN>/realms/handout`. One that does not differ
@@ -179,6 +179,9 @@ Before you start:
   redirect URI `https://handout.example.com/auth/callback`, post-logout redirect
   URI `https://handout.example.com/` (your own domain in both). That gives you
   the three values below.
+- **A role for everyone who may publish**, which your provider puts into the ID
+  token's top-level `roles` claim. Its value is `OIDC_REQUIRED_ROLE`. For
+  Microsoft Entra ID this is an app role, see below.
 - OpenSSL, for the `openssl rand` calls in the block below.
 
 Clone the repository to the machine, then run the block below in its root.
@@ -192,9 +195,9 @@ The block can do only that half. The OIDC coordinates come from your provider,
 and stay empty until you fill them: `OIDC_ISSUER_URL` (the issuer as your
 tokens carry it, e.g. `https://login.example.com/realms/company`),
 `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` (both of the client you registered),
-and the fourth, `OIDC_BACKCHANNEL_URL`, which the example already sets to the
+`OIDC_REQUIRED_ROLE` (the role's value), and the fifth, `OIDC_BACKCHANNEL_URL`, which the example already sets to the
 issuer and which you change only if your provider is reached differently from
-this machine. The last line of the block lists the empty ones, so the three
+this machine. The last line of the block lists the empty ones, so the four
 that are yours are what it prints.
 
 **The block overwrites an existing `.env`, and mints new secrets.** Run it once.
@@ -221,7 +224,7 @@ rm -f .env.bak
 grep -n '^[A-Z0-9_]*=$' .env
 ```
 
-Fill the three it lists in `.env`, then start it:
+Fill the four it lists in `.env`, then start it:
 
 ```sh
 docker compose --env-file .env up -d
@@ -231,11 +234,58 @@ The application runs its migrations and Caddy obtains the certificate for the
 publisher origin and, on demand, for every handout. There is nothing more to set
 up: sign in with your own provider.
 
-Two of the application's twelve differ from the local trial: `SESSION_COOKIE_SECURE`
+Two of the application's thirteen differ from the local trial: `SESSION_COOKIE_SECURE`
 is `true`, because every request the browser makes is HTTPS, and
 `OIDC_ALLOW_INSECURE_HTTP` is `false`, because a provider you did not install is
 reached over HTTPS from the application; if yours is not, set it to `true`
 knowingly.
+
+### Microsoft Entra ID
+
+Entra ID is an OIDC provider like any other; these steps produce the values the
+env file needs.
+
+1. **App registration.** *App registrations* → *New registration*, accounts in
+   this organizational directory only, redirect URI of platform *Web*:
+   `https://handout.example.com/auth/callback`. Then, under *Authentication*,
+   add `https://handout.example.com/` as a second *Web* redirect URI: Entra
+   accepts a post-logout address only when it is registered as a redirect URI.
+2. **Client secret.** *Certificates & secrets* → *New client secret*. Its value,
+   shown once, is `OIDC_CLIENT_SECRET`. It expires (at most after two years); an
+   expired secret makes every sign-in fail.
+3. **App role.** *App roles* → *Create app role*: display name `Publisher`,
+   allowed member types *Users/Groups*, value `publisher`, enabled. The value is
+   `OIDC_REQUIRED_ROLE`.
+4. **Assignment.** *Enterprise applications* → the application of the same name
+   → *Properties* → *Assignment required?* Yes. Then *Users and groups* → *Add
+   user/group*: the group of people who may publish, with the role `Publisher`.
+   Assigning a group needs Entra ID P1 or higher; without it, assign people one
+   by one. With assignment required Entra already turns away whoever has none;
+   Handout's own check is the second wall, for the day that setting is switched
+   off.
+5. **Email.** *Token configuration* → *Add optional claim* → token type *ID* →
+   `email`. Handout keeps it as a note beside the owner; without it that note
+   stays empty.
+
+| Variable | Value |
+| --- | --- |
+| `OIDC_ISSUER_URL` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| `OIDC_BACKCHANNEL_URL` | the same |
+| `OIDC_CLIENT_ID` | the registration's *Application (client) ID* |
+| `OIDC_CLIENT_SECRET` | the secret from step 2 |
+| `OIDC_REQUIRED_ROLE` | `publisher` |
+
+`<tenant-id>` is the *Directory (tenant) ID* on the registration's overview, a
+GUID; not `common` or `organizations`, whose discovery document names an issuer
+that the tokens do not carry.
+
+Why an app role and not a group: a groups claim carries object IDs rather than
+names, so the configured value would be an opaque GUID; it lists every group a
+person is in rather than those that concern this application; and above about
+200 groups Entra leaves the claim out of the token and sends a pointer to the
+Graph API instead (the "overage"), so the people in the most groups would be
+turned away. An app role is named by the application and appears in `roles` only
+for it.
 
 ## What scenarios 2 and 3 share
 
@@ -258,7 +308,11 @@ required, and the rest of the files is described in the README's
 | `OIDC_CLIENT_SECRET` | 2, 3 | the secret of the client: in scenario 2 you choose it, and the realm import and the application both read it; in scenario 3 it is the one your provider issued |
 | `OIDC_ISSUER_URL` | 3 | your provider's issuer as tokens carry it, e.g. `https://login.example.com/realms/company` |
 | `OIDC_CLIENT_ID` | 3 | the client id registered at your provider (scenario 2 fixes it to `handout-web`) |
+| `OIDC_REQUIRED_ROLE` | 3 | the value of the role your provider puts into the ID token's `roles` claim for everyone who may publish (scenario 2 fixes it to `publisher`, the client role of the bundled realm) |
 | `SESSION_SECRET` | 2, 3 | signs the session cookie of the application |
+
+The role is checked at sign-in only: a person whose role is taken away keeps a
+running session for up to eight hours.
 
 `OIDC_BACKCHANNEL_URL` is the same realm as the application reaches it: inside
 the compose network in scenario 2, the issuer itself in scenario 3.
@@ -275,7 +329,9 @@ bootstrap administrator, once: create a permanent administrator in the `master`
 realm, check that you can sign in with it, and delete the bootstrap account. Only
 then create the publishers by hand in the realm `handout`. There is no
 self-registration and no mail: a publisher gets a temporary password set in the
-console.
+console. Each publisher also needs the client role `publisher` of the client
+`handout-web` (*Users* → the user → *Role mapping* → *Assign role* → filter by
+clients); without it the sign-in ends on "No access to Handout".
 
 `KC_BOOTSTRAP_ADMIN_USERNAME` and `KC_BOOTSTRAP_ADMIN_PASSWORD` stay in the
 `.env` afterwards. **Both must be filled before the first start**, which the
@@ -314,8 +370,15 @@ So editing `keycloak/realm.production.json` later changes nothing, and a later
 change of `HANDOUT_DOMAIN` means changing the client's redirect URI and
 post-logout URI in the admin console by hand.
 
-In scenario 3 there is no first sign-in to prepare: whoever your provider lets in
-can publish.
+A realm imported before Handout checked the role has neither the role nor its
+mapper, and the import never runs again; add both in the admin console before
+upgrading (client `handout-web` → *Roles* → *Create role* `publisher`; *Client
+scopes* → `handout-web-dedicated` → *Add mapper* → *By configuration* → *User
+Client Role*, client ID `handout-web`, token claim name `roles`, multivalued on,
+add to ID token on), then assign the role to every publisher.
+
+In scenario 3 there is no first sign-in to prepare: whoever your provider lets in and gives the
+role in `OIDC_REQUIRED_ROLE` can publish.
 
 ### What must persist
 
@@ -425,7 +488,7 @@ in front of the application must do:
 - **Keep that path unreachable from outside**, as the one `caddy/Caddyfile` does
   for every site file.
 
-The application itself is one container that needs nothing but its twelve
+The application itself is one container that needs nothing but its thirteen
 variables, a PostgreSQL, and a directory for the data. What must persist is the
 list above. The container answers `GET /.handout/health` with `200` when it can
 reach its database, and stops on `SIGTERM`.

@@ -79,6 +79,7 @@ export async function buildTestServer(overrides = {}) {
     OIDC_BACKCHANNEL_URL: stub.url,
     OIDC_CLIENT_ID: clientId,
     OIDC_CLIENT_SECRET: clientSecret,
+    OIDC_REQUIRED_ROLE: "publisher",
     OIDC_ALLOW_INSECURE_HTTP: "true",
     SESSION_SECRET: "test-session-secret-0123456789abcdef0123",
     SESSION_COOKIE_SECURE: "false",

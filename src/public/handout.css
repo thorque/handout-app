@@ -1670,3 +1670,31 @@ h1 {
 .delete-dialog-cancel:hover {
   background: var(--paper-sunken);
 }
+
+/* The no-access page's "Sign out": the design system's second action
+   (Handout Designsystem.dc.html, "Knopf"), which has an :active that no
+   existing second-action class carries. Focus comes from the global
+   :focus-visible rule. The form's margin is the 16px gap of the "Leerer
+   Zustand" pattern, one sentence and then the way on. */
+.no-access-signout-form {
+  margin: var(--space-4) 0 0;
+}
+
+.no-access-signout-button {
+  height: var(--control-height);
+  padding: 0 20px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-1);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.no-access-signout-button:hover {
+  background: var(--paper-sunken);
+}
+
+.no-access-signout-button:active {
+  background: var(--sunken-hover);
+}

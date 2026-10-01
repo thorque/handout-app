@@ -248,7 +248,8 @@ test("the production blocks generate every secret with hex and leave no other em
     for (const [key, value] of envOf(n)) {
       if (value !== "") continue;
       const yours =
-        n === 3 && /^OIDC_(ISSUER_URL|CLIENT_ID|CLIENT_SECRET)$/.test(key);
+        n === 3 &&
+        /^OIDC_(ISSUER_URL|CLIENT_ID|CLIENT_SECRET|REQUIRED_ROLE)$/.test(key);
       assert.equal(
         filled.has(key),
         !yours,
@@ -538,7 +539,7 @@ test(".env.monoceros.example leaves nothing to fill and differs from .env.exampl
   }
 });
 
-test(".env.example is one file for both readers: compose's variables and the application's twelve", () => {
+test(".env.example is one file for both readers: compose's variables and the application's thirteen", () => {
   for (const key of CONFIG_VARIABLES) {
     assert.ok(dev.has(key), `${DEV_ENV} lacks ${key}`);
   }
@@ -610,4 +611,41 @@ test("the development loop runs the application from source and everything else 
   assert.match(dev.get("POSTGRES_URL"), /@localhost:5432\//);
   // The application listens where the Caddy container can reach it.
   assert.equal(dev.get("BIND_ADDRESS"), "0.0.0.0");
+});
+
+test("both realms give handout-web the role publisher and map it into the ID token's roles claim, and the env files that import them require it", () => {
+  for (const file of [
+    "keycloak/realm.json",
+    "keycloak/realm.production.json",
+  ]) {
+    const realm = JSON.parse(read(file));
+    assert.ok(
+      realm.roles.client["handout-web"].some((r) => r.name === "publisher"),
+      `${file} lacks the client role`,
+    );
+    const client = realm.clients.find((c) => c.clientId === "handout-web");
+    const mapper = client.protocolMappers.find(
+      (m) =>
+        m.protocolMapper === "oidc-usermodel-client-role-mapper" &&
+        m.config["claim.name"] === "roles",
+    );
+    assert.ok(mapper, `${file} lacks the roles mapper`);
+    assert.equal(mapper.config.multivalued, "true");
+    assert.equal(mapper.config["id.token.claim"], "true");
+    assert.equal(
+      mapper.config["usermodel.clientRoleMapping.clientId"],
+      "handout-web",
+    );
+  }
+  for (const user of JSON.parse(read("keycloak/realm.json")).users) {
+    assert.ok(user.clientRoles["handout-web"].includes("publisher"));
+  }
+  assert.equal(envOf(1).get("OIDC_REQUIRED_ROLE"), "publisher");
+  assert.equal(envOf(2).get("OIDC_REQUIRED_ROLE"), "publisher");
+  assert.equal(dev.get("OIDC_REQUIRED_ROLE"), "publisher");
+  assert.equal(
+    parseEnv(read(".env.monoceros.example")).get("OIDC_REQUIRED_ROLE"),
+    "publisher",
+  );
+  assert.equal(envOf(3).get("OIDC_REQUIRED_ROLE"), "");
 });

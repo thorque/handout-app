@@ -33,7 +33,7 @@ USER node
 # the pool and exits, so it needs no init wrapper as PID 1.
 #
 # Not `npm start`: that script passes `--env-file=.env`, and node aborts with
-# exit code 9 when the file is missing (verified). Every one of the twelve
+# exit code 9 when the file is missing (verified). Every one of the thirteen
 # configuration values comes from the container environment instead
 # (src/config.js names them all and aborts the start listing the missing ones).
 CMD ["node", "src/server.js"]

@@ -39,6 +39,13 @@ What you need:
   machine where you run the env blocks below, which call `openssl rand` to
   generate the secrets.
 
+What you are responsible for: **what your instance serves.** Handout does not
+inspect, filter or scan what is uploaded; whoever holds the role named in
+`OIDC_REQUIRED_ROLE` is trusted with it. So give that role only to people your
+own rules for publishing apply to. Every handout records its `owner`, the
+identifier your identity provider hands over, so who published what is never in
+doubt.
+
 ## Which scenario takes which files
 
 | # | Scenario | Env file | Caddy site file | Identity provider |
